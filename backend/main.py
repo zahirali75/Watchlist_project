@@ -29,13 +29,36 @@ class WatchlistUpdate(BaseModel):
     status: Optional[str] = None
     notes: Optional[str] = None
 
-@app.get("/", tags=["Health Check"])
-def root():
-    return {
-        "message": "Selamat datang di CineList API! 🎬",
-        "docs": "/docs",
-        "status": "Online & Connected to Supabase"
-    }
+class UserCreate(BaseModel):
+    name: str
+    email: str
+    password: str
+
+@app.post("/users", tags=["Auth"])
+def register_user(user: UserCreate):
+    """Mendaftarkan user baru. Password di‑hash dengan SHA‑256 sebelum disimpan."""
+    try:
+        # Hash password (simple SHA‑256, production sebaiknya gunakan argon2/bcrypt)
+        import hashlib
+        password_hash = hashlib.sha256(user.password.encode()).hexdigest()
+        payload = {
+            "name": user.name,
+            "email": user.email,
+            "password_hash": password_hash,
+        }
+        # Insert dan kembalikan data user yang baru dibuat (tanpa password)
+        response = supabase.table("users").insert(payload).execute()
+        if response.error:
+            # Jika email sudah ada, Supabase mengembalikan error unik
+            raise HTTPException(status_code=400, detail=response.error.message)
+        created = response.data[0]
+        # Jangan mengirim password_hash kembali ke client
+        created.pop("password_hash", None)
+        return {"success": True, "data": created}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/movies", tags=["Movies Catalog"])
 def get_movies(
