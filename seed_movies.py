@@ -51,4 +51,4 @@ def seed_movies(page=1, limit=20):
 
 if __name__ == "__main__":
     # Default: Ambil 20 film dari halaman 1
-    seed_movies(page=1, limit=20)
+    seed_movies(page=4, limit=20)
