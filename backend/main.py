@@ -52,12 +52,40 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer)
         raise HTTPException(status_code=401, detail="Token tidak memiliki sub")
     return int(user_id)
 
+def get_current_user_with_role(credentials: HTTPAuthorizationCredentials = Depends(bearer)):
+    """Return user_id dan role dari JWT token untuk RBAC."""
+    token = credentials.credentials
+    payload = decode_token(token)
+    user_id = payload.get("sub")
+    role = payload.get("role", "user")  # default role: user
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Token tidak memiliki sub")
+    return {"user_id": int(user_id), "role": role}
+
+def require_admin(credentials: HTTPAuthorizationCredentials = Depends(bearer)):
+    """Hanya admin yang bisa akses endpoint ini."""
+    user_info = get_current_user_with_role(credentials)
+    if user_info["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Akses ditolak: hanya admin yang diizinkan")
+    return user_info["user_id"]
+
 from backend.database import supabase
 
 app = FastAPI(
     title="CineList API",
     description="REST API untuk aplikasi CineList",
     version="1.0.0"
+)
+
+# -------------------------------------------------
+# CORS Middleware - aktifkan untuk frontend React
+# -------------------------------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite default: 5173
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # -------------------------------------------------
@@ -96,6 +124,10 @@ class RegisterUser(BaseModel):
     password: str
     name: Optional[str] = None
 
+class LoginUser(BaseModel):
+    email: str
+    password: str
+
 # -------------------------------------------------
 # Endpoints
 # -------------------------------------------------
@@ -122,6 +154,19 @@ def get_movies(
             query = query.ilike("genre", f"%{genre}%")
         response = query.execute()
         return {"success": True, "count": len(response.data), "data": response.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/movies/{movie_id}", tags=["Movies Catalog"])
+def get_movie_detail(movie_id: int):
+    """Mengambil detail lengkap 1 film spesifik."""
+    try:
+        response = supabase.table("movies").select("*").eq("id", movie_id).execute()
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Film tidak ditemukan")
+        return {"success": True, "data": response.data[0]}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -180,6 +225,68 @@ def add_to_watchlist(item: WatchlistCreate, current_user: int = Depends(get_curr
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.put("/watchlists/{watchlist_id}", tags=["Watchlist"])
+def update_watchlist_item(
+    watchlist_id: int,
+    update_data: WatchlistUpdate,
+    current_user: int = Depends(get_current_user)
+):
+    """Update status atau notes dari watchlist item (JWT protected)."""
+    try:
+        # Cek apakah watchlist item milik user yang login
+        check = supabase.table("watchlists").select("user_id").eq("id", watchlist_id).execute()
+        if not check.data:
+            raise HTTPException(status_code=404, detail="Watchlist item tidak ditemukan")
+        
+        owner_id = check.data[0]["user_id"]
+        if current_user != int(owner_id):
+            raise HTTPException(status_code=403, detail="Tidak diizinkan mengubah watchlist orang lain")
+        
+        # Validasi status jika diberikan
+        if update_data.status and update_data.status not in ["want_to_watch", "watching", "watched"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Status tidak valid. Harus salah satu dari: want_to_watch, watching, watched"
+            )
+        
+        # Update hanya field yang diberikan
+        update_payload = update_data.model_dump(exclude_unset=True)
+        if not update_payload:
+            raise HTTPException(status_code=400, detail="Tidak ada data untuk diupdate")
+        
+        response = (
+            supabase
+            .table("watchlists")
+            .update(update_payload)
+            .eq("id", watchlist_id)
+            .execute()
+        )
+        return {"success": True, "message": "Watchlist item berhasil diupdate", "data": response.data}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/watchlists/{watchlist_id}", tags=["Watchlist"])
+def delete_watchlist_item(watchlist_id: int, current_user: int = Depends(get_current_user)):
+    """Hapus item dari watchlist (JWT protected)."""
+    try:
+        # Cek ownership
+        check = supabase.table("watchlists").select("user_id").eq("id", watchlist_id).execute()
+        if not check.data:
+            raise HTTPException(status_code=404, detail="Watchlist item tidak ditemukan")
+        
+        owner_id = check.data[0]["user_id"]
+        if current_user != int(owner_id):
+            raise HTTPException(status_code=403, detail="Tidak diizinkan menghapus watchlist orang lain")
+        
+        response = supabase.table("watchlists").delete().eq("id", watchlist_id).execute()
+        return {"success": True, "message": "Watchlist item berhasil dihapus", "data": response.data}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Users
 @app.get("/users", tags=["Users"])
 def get_all_users():
@@ -195,14 +302,49 @@ def register_user(user: RegisterUser):
     """Buat user baru di Supabase → hash password → JWT."""
     pwd = str(user.password)
     hashed = pwd_context.hash(pwd)
-    payload = {"email": user.email, "password_hash": hashed, "name": user.name or ""}
+    payload = {"email": user.email, "password_hash": hashed, "name": user.name or "", "role": "user"}
     try:
         resp = supabase.table("users").insert(payload).execute()
         if not resp.data:
             raise HTTPException(status_code=500, detail="Gagal menyimpan user ke Supabase")
         user_id = resp.data[0].get("id")
-        token = create_access_token({"sub": str(user_id)})
-        return {"success": True, "user_id": user_id, "access_token": token}
+        role = resp.data[0].get("role", "user")
+        token = create_access_token({"sub": str(user_id), "role": role})
+        return {"success": True, "user_id": user_id, "access_token": token, "role": role}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/login", tags=["Authentication"])
+def login_user(credentials: LoginUser):
+    """Login user → verifikasi password → return JWT token."""
+    try:
+        # Cari user berdasarkan email
+        resp = supabase.table("users").select("*").eq("email", credentials.email).execute()
+        if not resp.data:
+            raise HTTPException(status_code=401, detail="Email atau password salah")
+        
+        user = resp.data[0]
+        stored_hash = user.get("password_hash")
+        
+        # Verifikasi password
+        if not pwd_context.verify(credentials.password, stored_hash):
+            raise HTTPException(status_code=401, detail="Email atau password salah")
+        
+        # Generate JWT token dengan role
+        user_id = user.get("id")
+        role = user.get("role", "user")
+        token = create_access_token({"sub": str(user_id), "role": role})
+        
+        return {
+            "success": True,
+            "user_id": user_id,
+            "email": user.get("email"),
+            "name": user.get("name"),
+            "role": role,
+            "access_token": token
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
