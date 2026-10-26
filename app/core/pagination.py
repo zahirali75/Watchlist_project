@@ -23,7 +23,7 @@ class Pagination(BaseModel):
 
 
 def pagination_params(
-    page: int = Query(1, ge=1, description="Halaman (mulai dari 1)"),
+    page: int = Query(1, ge=1, le=1_000_000, description="Halaman (mulai dari 1, maksimal 1.000.000)"),
     limit: int = Query(0, ge=0, le=1000, description="Jumlah item per halaman"),
 ) -> Pagination:
     settings = get_settings()

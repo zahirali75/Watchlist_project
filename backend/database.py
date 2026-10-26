@@ -1,13 +1,10 @@
-import os
-from dotenv import load_dotenv
-from supabase import create_client
+"""Compatibility exports for direct PostgreSQL access.
 
-load_dotenv()
+The old implementation created a Supabase REST client. The application now
+uses the PostgreSQL DSN configured by DATABASE_URL and SQLAlchemy Core. Keeping
+these exports preserves the historical module path without retaining a second
+or inconsistent database implementation.
+"""
+from app.db.session import get_connection, get_engine
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError("SUPABASE_URL dan SUPABASE_KEY belum diatur di file .env")
-
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+__all__ = ["get_connection", "get_engine"]

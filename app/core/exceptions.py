@@ -56,7 +56,12 @@ class ConflictError(AppError):
     code = "CONFLICT"
 
 
+class TooManyRequestsError(AppError):
+    status_code = 429
+    code = "TOO_MANY_REQUESTS"
+
+
 class UpstreamError(AppError):
-    """Supabase / jaringan bermasalah."""
+    """Database or network connectivity problem."""
     status_code = 502
     code = "UPSTREAM_ERROR"

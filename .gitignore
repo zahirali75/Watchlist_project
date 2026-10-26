@@ -1,8 +1,17 @@
+# secrets
 .env
+.env.*
+!.env.example
+
+# python
 __pycache__/
 *.pyc
 .venv/
 env/
 venv/
+.pytest_cache/
+*.egg-info/
+
+# os / editor / log
 .DS_Store
 *.log

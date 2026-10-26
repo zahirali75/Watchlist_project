@@ -1,16 +1,17 @@
-"""Smoke test ke server yang sedang jalan (data asli Supabase).
+"""Smoke test ke server yang sedang jalan.
 
-Jalankan: ./.venv/Scripts/python.exe scripts/smoke_check.py
-Server harus sudah hidup di http://127.0.0.1:8010
-Script ini MENULIS data uji (1 user + 1 watchlist) lalu MEMBERSIHKAN watchlist-nya.
+Jalankan: python scripts/smoke_check.py   (atau BASE_URL=http://host:port python scripts/smoke_check.py)
+Server harus sudah hidup (default http://127.0.0.1:8000, sama dengan run.sh)
+JANGAN arahkan ke database produksi. Script ini MENULIS data uji (1 user + 1 watchlist) lalu MEMBERSIHKAN watchlist-nya.
 """
 from __future__ import annotations
 
+import os
 import time
 
 import httpx
 
-BASE = "http://127.0.0.1:8010"
+BASE = os.getenv("BASE_URL", "http://127.0.0.1:8000")
 
 
 def show(label: str, response: httpx.Response) -> None:
@@ -48,7 +49,7 @@ def main() -> None:
             show(f"PUT /watchlists/{item_id}", c.put(f"/watchlists/{item_id}", json={"status": "watched"}, headers=headers))
             show(f"DELETE /watchlists/{item_id} (bersih-bersih)", c.delete(f"/watchlists/{item_id}", headers=headers))
 
-        print(f"CATATAN: akun uji {email} dibuat di Supabase, hapus manual kalau perlu.")
+        print(f"CATATAN: akun uji {email} dibuat di database target, hapus manual kalau perlu.")
 
 
 if __name__ == "__main__":

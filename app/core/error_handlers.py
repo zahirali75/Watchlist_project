@@ -6,10 +6,11 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.exceptions import AppError
 
-logger = logging.getLogger("cinelist")
+logger = logging.getLogger("app.core")
 
 
 def _error_payload(error_code: int | str, message: str, meta=None) -> dict:
@@ -19,7 +20,28 @@ def _error_payload(error_code: int | str, message: str, meta=None) -> dict:
     return {"success": False, "message": message, "data": data}
 
 
+# Kode error untuk HTTP error bawaan framework (rute tidak ada, metode salah, dst.)
+# agar bentuknya sama dengan error aplikasi.
+_FRAMEWORK_ERRORS: dict[int, tuple[str, str]] = {
+    400: ("BAD_REQUEST", "Request tidak valid"),
+    404: ("NOT_FOUND", "Rute tidak ditemukan"),
+    405: ("METHOD_NOT_ALLOWED", "Metode HTTP tidak diizinkan untuk rute ini"),
+    406: ("NOT_ACCEPTABLE", "Format respons tidak didukung"),
+    413: ("PAYLOAD_TOO_LARGE", "Ukuran request terlalu besar"),
+    415: ("UNSUPPORTED_MEDIA_TYPE", "Content-Type tidak didukung"),
+}
+
+
 def register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error_handler(_request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        code, default_message = _FRAMEWORK_ERRORS.get(exc.status_code, ("HTTP_ERROR", str(exc.detail)))
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=_error_payload(code, default_message),
+            headers=getattr(exc, "headers", None),
+        )
+
     @app.exception_handler(AppError)
     async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
         return JSONResponse(

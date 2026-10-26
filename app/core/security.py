@@ -9,7 +9,13 @@ from passlib.context import CryptContext
 from app.core.config import get_settings
 from app.core.exceptions import UnauthorizedError
 
-pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+# OWASP recommends >=600,000 PBKDF2-HMAC-SHA256 iterations when PBKDF2 is used.
+# Existing hashes retain their encoded rounds and remain verifiable.
+pwd_context = CryptContext(
+    schemes=["pbkdf2_sha256"],
+    deprecated="auto",
+    pbkdf2_sha256__rounds=600_000,
+)
 
 
 def hash_password(plain_password: str) -> str:
@@ -37,7 +43,13 @@ def create_access_token(subject: str | int, role: str = "user") -> str:
 def decode_token(token: str) -> dict:
     settings = get_settings()
     try:
-        return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        # Algoritma diset eksplisit (bukan dari input token) dan klaim exp/sub wajib ada.
+        return jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            options={"require": ["exp", "sub"]},
+        )
     except jwt.ExpiredSignatureError as exc:
         raise UnauthorizedError("Token kedaluwarsa") from exc
     except jwt.PyJWTError as exc:
