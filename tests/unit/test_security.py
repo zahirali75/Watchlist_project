@@ -1,6 +1,7 @@
 """Hash password dan JWT (tanpa database)."""
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -23,6 +24,32 @@ def test_hash_lama_29000_rounds_masih_valid_dan_ditandai_perlu_upgrade():
     legacy = pwd_context.using(pbkdf2_sha256__rounds=29_000).hash("rahasia123")
     assert verify_password("rahasia123", legacy)
     assert pwd_context.needs_update(legacy)
+
+
+def _hash_sha256_lama(password: str) -> str:
+    """Meniru 8 hash SHA-256 lama yang dulu membuat login meledak jadi HTTP 500."""
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
+def test_hash_format_asing_ditolak_bukan_meledak():
+    # Bentuk apa pun yang bukan milik passlib harus mengembalikan False,
+    # bukan melempar pengecualian (penyebab error 500 saat login dulu).
+    for aneh in (
+        "5f4dcc3b5aa765d61d8327deb882cf99",          # hex sha256 32 karakter (format lama)
+        _hash_sha256_lama("rahasia123"),            # sha256 64 karakter
+        "hash-palsu",                                # bukan format apa pun
+        "$pbkdf2-sha256$abc$xx$yy",                  # pbkdf2 tapi rusak
+        "$2b$12$" + "x" * 53,                        # bcrypt yang tidak didukung konteks
+    ):
+        assert verify_password("rahasia123", aneh) is False, aneh
+
+
+def test_hash_rusak_tidak_bikin_login_500():
+    # Inti perbaikannya: verify_password tidak boleh menaikkan UnknownHashError.
+    try:
+        assert verify_password("salah", "abcdef1234567890") is False
+    except Exception as exc:  # pragma: no cover - hanya jalan kalau bug kembali
+        raise AssertionError(f"verify_password meledak lagi: {type(exc).__name__}: {exc}") from exc
 
 
 def test_token_berisi_claim_wajib():

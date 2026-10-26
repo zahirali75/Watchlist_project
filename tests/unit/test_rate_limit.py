@@ -1,6 +1,8 @@
 """Pembatas login."""
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from app.core.exceptions import TooManyRequestsError
@@ -43,6 +45,9 @@ def test_ip_key_terpisah_dari_key_per_email_dan_menahan_spraying():
 def test_bucket_kosong_dibuang_setelah_jendela_habis():
     t = LoginThrottle()
     key = t.key("1.1.1.1", "gone@x.com")
-    t.record_failure(key)
-    t.check(key, 5, 0)  # jendela 0 detik: kegagalan langsung kedaluwarsa
+    # Waktu kegagalan dimundurkan 60 detik ke belakang secara eksplisit, supaya tes
+    # tidak bergantung pada resolusi jam sistem (di Windows time.monotonic() bisa
+    # berbutir ~15,6 ms; dengan jendela 0 detik dua panggilan berurutan jadi identik).
+    t.record_failure(key, at=time.monotonic() - 60)
+    t.check(key, 5, 30)  # jendela 30 detik: kegagalan tadi sudah kedaluwarsa
     assert key not in t._failures

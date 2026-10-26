@@ -1,6 +1,7 @@
 """Hashing password + pembuatan/pembacaan JWT."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -8,6 +9,8 @@ from passlib.context import CryptContext
 
 from app.core.config import get_settings
 from app.core.exceptions import UnauthorizedError
+
+logger = logging.getLogger("app.security")
 
 # OWASP recommends >=600,000 PBKDF2-HMAC-SHA256 iterations when PBKDF2 is used.
 # Existing hashes retain their encoded rounds and remain verifiable.
@@ -25,7 +28,15 @@ def hash_password(plain_password: str) -> str:
 def verify_password(plain_password: str, password_hash: str | None) -> bool:
     if not password_hash:
         return False
-    return pwd_context.verify(plain_password, password_hash)
+    try:
+        return pwd_context.verify(plain_password, password_hash)
+    except ValueError:
+        # passlib melempar UnknownHashError (turunan ValueError) untuk hash yang
+        # formatnya tidak dikenali — mis. sisa hash SHA-256 lama. Dulu pengecualian
+        # ini lolos ke lapisan API dan berubah jadi HTTP 500 saat login.
+        # Hash yang tidak dikenali = kredensial tidak sah, jadi ditolak sebagai False.
+        logger.warning("password_hash dengan format tidak dikenali ditolak (panjang=%d)", len(password_hash))
+        return False
 
 
 def create_access_token(subject: str | int, role: str = "user") -> str:

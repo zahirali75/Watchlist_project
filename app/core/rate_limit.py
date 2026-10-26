@@ -52,9 +52,10 @@ class LoginThrottle:
                     meta={"retryAfterSeconds": retry_after},
                 )
 
-    def record_failure(self, key: str) -> None:
+    def record_failure(self, key: str, at: float | None = None) -> None:
+        """Catat satu kegagalan. `at` hanya dipakai tes untuk memundurkan waktu."""
         with self._lock:
-            self._failures[key].append(time.monotonic())
+            self._failures[key].append(time.monotonic() if at is None else at)
 
     def reset(self, key: str) -> None:
         with self._lock:
