@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 if [ -x ".venv/bin/python" ]; then
   PY=".venv/bin/python"
 elif [ -x ".venv/Scripts/python.exe" ]; then
-  PY=".venv/Scripts/python.exe"git
+  PY=".venv/Scripts/python.exe"
 else
   echo "[setup] membuat virtualenv .venv ..."
   python3 -m venv .venv 2>/dev/null || python -m venv .venv
