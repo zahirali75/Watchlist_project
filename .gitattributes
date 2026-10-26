@@ -1,0 +1,8 @@
+# Semua file teks disimpan dengan LF di dalam repo, dan tetap LF saat di-checkout
+# di Windows. Tanpa aturan ini, `core.autocrlf=true` (bawaan Git for Windows)
+# mengubah run.sh menjadi CRLF. Bash dari WSL menolak file itu dengan pesan
+# aneh:  "set: pipefail\r: invalid option name"  karena \r dianggap bagian nama opsi.
+* text=auto eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
