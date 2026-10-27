@@ -21,4 +21,4 @@ Backup dahulu dan periksa tabel/constraint yang benar-benar tersedia. `CREATE TA
 
 Sumber migrasi aktif adalah Alembic: `migrations/versions/` (revision `0001`, `0002`, `0003`). Konfigurasi ada di `alembic.ini` dan `migrations/env.py`, serta membaca `DATABASE_URL` dari environment/.env. Folder `alembic/` di root sudah tidak dipakai.
 
-Folder `legacy_sql/` ini hanya arsip. Untuk database yang dibuat dari file SQL di atas, jalankan `alembic stamp 0002`, tinjau revision `0003`, lalu `alembic upgrade head`. Lihat `docs/database.md`.
+Folder `legacy_sql/` ini hanya arsip. Untuk database yang dibuat dari file SQL di atas, pastikan kedua file (termasuk `audit_logs`) sudah dijalankan, lalu `alembic stamp 0002`, tinjau revision `0003` dan `0004`, baru `alembic upgrade head`. `stamp` tidak membuat tabel apa pun — bila `audit_logs` belum ada saat stamp dijalankan, tabel itu tidak akan pernah terbuat. Lihat `docs/database.md`.

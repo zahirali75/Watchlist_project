@@ -110,7 +110,7 @@ Skor numerik 0–100 **tidak diberikan**: bukti yang ada (satu lingkungan lokal,
 
 ## 11. Pekerjaan tersisa & risiko
 Prioritas sebelum dipakai publik: (1) uji ke database Supabase/produksi **setelah backup**; jalankan `stamp 0002` → tinjau → `upgrade head`; (2) rate limit terdistribusi bila >1 worker; (3) HTTPS + origin CORS produksi; (4) `response_model`; (5) strategi sesi (refresh/revoke) bila dibutuhkan; (6) ganti `passlib`/uji Python 3.13; (7) putuskan TIMESTAMPTZ; (8) perluas audit; (9) CI untuk `pytest` + tes integrasi.
-Risiko migrasi 0003: berhenti bila ada email kembar; constraint `NOT VALID` tidak memeriksa data lama sampai `VALIDATE`; `NOT NULL` mengisi `role='user'`/`status='want_to_watch'` pada baris NULL lama.
+Risiko migrasi 0003: berhenti bila ada email kembar; constraint `NOT VALID` tidak memeriksa data lama sampai `VALIDATE`; `NOT NULL` mengisi `role='user'`/`status='want_to_watch'` pada baris NULL lama. **Status 26 Okt 2026:** migrasi sudah dijalankan di Supabase dan kedua constraint sudah diangkat ke VALID.
 
 ## 12. Menjalankan proyek
 Lihat `README.md`. Ringkas: `cp .env.example .env` → isi `DATABASE_URL` & `SECRET_KEY` → `alembic upgrade head` → `./run.sh` → `/docs`. Tes: `pytest -q`; integrasi: set `TEST_DATABASE_URL` ke database khusus tes.

@@ -1,6 +1,6 @@
 # Setup, Migrasi, dan Testing — CineList
 
-Semua langkah di bawah sudah dijalankan dan diverifikasi pada Python 3.12.3 dan PostgreSQL 16.15.
+Semua langkah di bawah sudah dijalankan dan diverifikasi pada Python 3.12.3 dan PostgreSQL 16.15 (lokal), lalu dijalankan ulang pada Supabase PostgreSQL 17.6 (26 Okt 2026).
 
 ## 1. Prasyarat
 
@@ -66,11 +66,11 @@ Jika `DATABASE_URL` menunjuk ke Supabase:
 
 ```bash
 alembic upgrade head      # database baru
-alembic current           # harus menampilkan 0004 (head)
+alembic current           # harus menampilkan 0006 (head)
 alembic check             # harus: No new upgrade operations detected
 ```
 
-Database yang dibuat dari file SQL lama (`migrations/legacy_sql/`): `alembic stamp 0002`, tinjau revision `0003` dan `0004`, lalu `alembic upgrade head`. Backup database dulu.
+Database yang dibuat dari file SQL lama (`migrations/legacy_sql/`): pastikan tabel `audit_logs` sudah ada (stamp tidak membuatnya), `alembic stamp 0002`, tinjau revision `0003` dan `0004`, lalu `alembic upgrade head`. Backup database dulu.
 
 ## 6. Seed data (opsional)
 
@@ -106,7 +106,8 @@ Swagger: `http://localhost:8000/docs` (development saja).
 pytest -q
 ```
 
-Hasil saat audit: **80 lulus, 17 dilewati**. Tes integrasi dilewati karena `TEST_DATABASE_URL` belum diisi.
+Hasil saat audit (26 Okt 2026): **80 lulus, 17 dilewati**. Tes integrasi dilewati karena `TEST_DATABASE_URL` belum diisi.
+Hasil terbaru (27 Okt 2026, setelah fitur sesi/password): **122 lulus, 1 dilewati** — 17 tes integrasi kini berjalan, dan 1 dilewati khusus di Supabase (lihat catatan di bawah).
 
 ### Integrasi (PostgreSQL asli)
 
@@ -115,7 +116,12 @@ createdb -O cinelist_user cinelist_test
 TEST_DATABASE_URL=postgresql+psycopg://cinelist_user:password@127.0.0.1:5432/cinelist_test pytest -q
 ```
 
-Hasil saat audit: **97 lulus**.
+Hasil saat audit (26 Okt 2026): **97 lulus**.
+
+**PENTING — jangan arahkan `TEST_DATABASE_URL` ke database utama.** Tes integrasi menjalankan `DROP SCHEMA public CASCADE` untuk membangun ulang dari nol. Karena itu `tests/integration/conftest.py` menolak (bukan sekadar memperingatkan) bila nama database tidak mengandung `test`.
+Nilai ini boleh ditulis di `.env`; `tests/conftest.py` memuat `.env` otomatis, jadi `pytest -q` biasa sudah menjalankan tes integrasi.
+
+Di lingkungan Supabase, pooler-nya memerlukan `SNI`/`external_id` agar role berbeda bisa login, sehingga tes yang membuat role tamu (`test_migrasi_menolak_role_non_pemilik_tanpa_bypassrls`) dilewati. Tes itu tetap berjalan penuh di PostgreSQL lokal.
 
 PERINGATAN: tes integrasi menghapus dan membuat ulang schema `public` di database tes. Pengaman menolak jalan bila nama database tidak mengandung `test`. Jangan pernah mengarahkannya ke database produksi.
 
@@ -140,8 +146,8 @@ Script ini membuat satu akun uji di database target. Jalankan hanya ke database 
 
 | Pemeriksaan | Perintah | Hasil |
 |---|---|---|
-| Unit + API | `pytest -q` | 80 lulus, 17 dilewati |
-| Integrasi + semua | `TEST_DATABASE_URL=... pytest -q` | 97 lulus |
+| Unit + API | `pytest -q` | 122 lulus, 1 dilewati (integrasi ikut jalan bila `.env` berisi `TEST_DATABASE_URL`) |
+| Integrasi + semua | `TEST_DATABASE_URL=... pytest -q` | 122 lulus, 1 dilewati (di Supabase) |
 | Migrasi dari kosong | `alembic upgrade head` | Berhasil (0001 → 0003) |
 | Drift model | `alembic check` | Tidak ada drift |
 | Analisis statis | `pyflakes` | Bersih |

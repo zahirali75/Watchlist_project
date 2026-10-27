@@ -42,6 +42,14 @@ def find_auth_by_email(email: str) -> dict | None:
     )
 
 
+def find_auth_by_id(user_id: str) -> dict | None:
+    """KHUSUS ganti password: ikut menarik password_hash milik satu user."""
+    return fetch_one(
+        "SELECT id, email, name, role, password_hash FROM users WHERE id = :user_id",
+        {"user_id": user_id},
+    )
+
+
 def create(payload: dict[str, Any]) -> dict | None:
     return execute_returning(
         """INSERT INTO users (name, email, password_hash, role)
@@ -57,3 +65,16 @@ def update_password_hash(user_id: str, password_hash: str) -> bool:
         {"user_id": user_id, "password_hash": password_hash},
     )
     return row is not None
+
+
+def update_profile(user_id: str, name: str) -> dict | None:
+    """Ubah nama tampilan milik sendiri. Email & role TIDAK bisa diubah di sini.
+
+    Mengubah email berarti mengubah identitas login (harus lewat verifikasi email),
+    dan mengubah role berarti menaikkan hak akses sendiri - keduanya bukan urusan
+    endpoint profil pribadi.
+    """
+    return execute_returning(
+        f"UPDATE users SET name = :name WHERE id = :user_id RETURNING {PUBLIC_COLUMNS}",
+        {"user_id": user_id, "name": name},
+    )

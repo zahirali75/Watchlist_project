@@ -24,6 +24,10 @@ def get_engine() -> Engine:
         pool_pre_ping=True,
         pool_recycle=1800,
         future=True,
+        # Tanpa batas waktu, koneksi ke host yang tidak menjawab akan MENGGANTUNG
+        # tanpa akhir (bukan error), sehingga permintaan HTTP ikut menggantung.
+        # Dengan batas ini, kegagalan jaringan berubah jadi 502 dengan cepat.
+        connect_args={"connect_timeout": 5},
     )
 
 

@@ -75,3 +75,17 @@ def execute_returning(sql: str, params: dict[str, Any] | None = None) -> dict | 
             return dict(row) if row is not None else None
     except (IntegrityError, SQLAlchemyError) as exc:
         _translate_error(exc)
+
+
+def execute_returning_all(sql: str, params: dict[str, Any] | None = None) -> list[dict]:
+    """Sama seperti execute_returning, tetapi mengembalikan SEMUA baris.
+
+    Dipakai operasi tulis yang perlu tahu berapa baris terpengaruh
+    (mis. mencabut seluruh sesi milik satu user).
+    """
+    try:
+        with get_connection(write=True) as connection:
+            rows = connection.execute(text(sql), params or {}).mappings().all()
+            return [dict(row) for row in rows]
+    except (IntegrityError, SQLAlchemyError) as exc:
+        _translate_error(exc)

@@ -45,7 +45,7 @@ const reg = await api("/auth/register", { method: "POST", body: { email, passwor
 const login = await api("/auth/login", { method: "POST", body: { email, password } });
 // login = { success, message, userId, email, name, role, accessToken }
 ```
-Token berlaku `ACCESS_TOKEN_EXPIRE_MINUTES` (default 60 menit). Tidak ada refresh token: saat 401 → arahkan ke halaman login.
+Token berlaku `ACCESS_TOKEN_EXPIRE_MINUTES` (default 60 menit). Saat 401 → coba `POST /auth/refresh` dengan refresh token yang disimpan; bila refresh juga 401 (kedaluwarsa/dicabut) → arahkan ke halaman login.
 
 **Penyimpanan token:**
 - SPA sederhana/tugas kuliah: simpan di memori (state) dan, bila perlu bertahan saat refresh, `sessionStorage`. `localStorage` rentan dibaca skrip XSS; pastikan tidak ada `dangerouslySetInnerHTML` dari input pengguna.
@@ -103,7 +103,9 @@ http.interceptors.response.use(r => r, err => { if (err.response?.status === 401
 ```
 
 ## 9. Membaca Swagger / OpenAPI
-Buka `/docs` (development) → **Authorize** → tempel `accessToken` (tanpa kata `Bearer`) → coba endpoint. Skema mentah: `/openapi.json` (bisa dipakai generator klien seperti `openapi-typescript`). Catatan: respons belum bertipe di OpenAPI (`response_model` belum dipakai), jadi tipe respons perlu ditulis manual sesuai [api.md](api.md).
+Buka `/docs` (development) → **Authorize** → tempel `accessToken` (tanpa kata `Bearer`) → coba endpoint. Skema mentah: `/openapi.json`.
+
+**Penting bila backend ini dijadikan acuan frontend:** yang bertipe di OpenAPI baru **body request** (skema `RegisterUser`, `MovieCreate`, dll.). **Bentuk respons belum ada tipenya** — `response_model` belum dipakai di satu router pun, sehingga setiap respons muncul sebagai `{}` di `/openapi.json`. Konsekuensinya generator klien otomatis (seperti `openapi-typescript`) hanya menghasilkan tipe request; tipe respons harus ditulis manual mengikuti tabel contoh di [api.md](api.md).
 
 ## 10. Format data yang perlu diperhatikan
 - ID user = UUID string; ID film/watchlist/audit = integer.

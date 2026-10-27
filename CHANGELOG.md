@@ -2,6 +2,17 @@
 
 Perbandingan terhadap kode sebelum audit (snapshot dari ZIP yang diunggah). Versi API tetap `2.0.0`.
 
+## Sesi & password (27 Oktober 2026)
+
+Empat penambahan yang menutup celah terakhir sebelum frontend dibangun. Bentuk respons lama **tidak diubah** — tes kontrak tetap menegakkannya.
+
+- **Sesi berlapis (refresh token).** Sebelumnya JWT berlaku 60 menit tanpa jalur perpanjangan, sehingga pengguna terlempar ke halaman login di tengah pemakaian. Sekarang tabel `refresh_tokens` (migrasi 0005) menyimpan sesi 14 hari; token **hanya disimpan sebagai hash SHA-256**, jadi bocornya isi tabel tidak memberi akses. Token **dirotasi** tiap dipakai. (`POST /auth/refresh`, `POST /auth/logout`)
+- **Profil sendiri** `GET/PUT /users/me`. Sebelumnya satu-satunya jalur data user adalah endpoint admin, sehingga pengguna biasa **selalu 403** bahkan untuk datanya sendiri. Router `/users/me` dipisah dari router admin (yang dijaga menyeluruh) dan didaftarkan lebih dulu agar tidak tertangkap pola `/users/{user_id}`.
+- **Ganti password** `POST /auth/change-password` (wajib password lama; seluruh sesi dicabut) dan **lupa password** lewat email: `POST /auth/forgot-password` + `POST /auth/reset-password`. Tabel `password_resets` (migrasi 0006) menyimpan token sekali pakai berumur 30 menit, juga sebagai hash. Jawaban lupa password **selalu sama** sehingga tidak membocorkan email mana yang terdaftar.
+- **Email dikirim lewat `app/notifications/`.** Bila `SMTP_HOST` kosong, email tidak dikirim dan isinya hanya ditulis ke log server — jalur lupa password tetap bisa diuji saat pengembangan.
+- **Tes integrasi dijalankan sungguhan** (17 tes, sebelumnya 17 dilewati): dibuat database `cinelist_test` terpisah karena tes ini menghapus schema `public`. Ditemukan dan diperbaiki: (1) `alembic check` mendeteksi model `refresh_token`/`password_reset` tidak sinkron dengan migrasi (unique lewat `unique=True` di kolom vs unique index) — model disamakan dengan migrasi; (2) `connect_timeout` ditambahkan di `app/db/session.py`, sebab tanpa itu koneksi ke host yang tidak menjawab **menggantung tanpa batas** alih-alih gagal cepat; (3) `python-dotenv` (sudah ada di requirements) kini dimuat `tests/conftest.py` agar `TEST_DATABASE_URL` dari `.env` terbaca.
+- Hasil: `pytest` **122 lulus / 1 dilewati** (tes ownership role dilewati khusus di Supabase — pooler-nya butuh SNI/external_id untuk multi-role). Endpoint: **28 operasi** (sebelumnya 20).
+
 ## Keamanan
 
 - **Placeholder `SECRET_KEY` ditolak.** Sebelumnya nilai contoh dari `.env.example` (62 karakter) diterima. Sekarang aplikasi menolak start dengan pesan yang jelas. (`app/core/config.py`)
@@ -19,7 +30,7 @@ Perbandingan terhadap kode sebelum audit (snapshot dari ZIP yang diunggah). Vers
 - **Downgrade** hanya mematikan RLS. Grant tidak dikembalikan secara otomatis.
 - Tes baru: 4 di `tests/integration/test_supabase_exposure.py`. Dibuktikan: menghapus `ENABLE ROW LEVEL SECURITY` membuat 2 tes gagal; menghapus guard membuat 1 tes gagal.
 - Panduan Supabase: `TESTING_AND_SETUP.md` bagian 4b. Pemeriksaan skill: `BACKEND_DEEP_AUDIT_REPORT.md` bagian 9b. Verifikasi peran: `DATABASE_ERD.md` bagian 5b.
-- **Belum diverifikasi** terhadap Supabase nyata. Akses ke supabase.com, CLI, dan dashboard tidak tersedia di lingkungan audit.
+- **Sudah diverifikasi** terhadap Supabase nyata pada 26 Okt 2026: RLS aktif di keempat tabel, grant `anon`/`authenticated` = 0 tabel dan 0 usage schema, dan `alembic check` tanpa drift. Catatan: pada proyek Supabase baru grant itu memang sudah kosong, sehingga 0004 berperan sebagai lapis penegas, bukan perbaikan kebocoran.
 
 ## Validasi input
 
@@ -47,6 +58,7 @@ Perbandingan terhadap kode sebelum audit (snapshot dari ZIP yang diunggah). Vers
 
 - Tes baru: 19 (`tests/unit/test_config.py` +2, `tests/unit/test_security.py` +2, `tests/unit/test_rate_limit.py` +2, `tests/api/test_hardening.py` baru dengan 9 tes).
 - Hasil: 80 lulus + 17 dilewati tanpa database (sebelumnya 65 + 13). 97 lulus dengan PostgreSQL 16.15 (sebelumnya 78).
+- **26 Okt 2026, dijalankan ulang pada Supabase PostgreSQL 17.6:** 82 lulus + 17 dilewati. 17 yang dilewati ada di `tests/integration` dan hanya jalan bila `TEST_DATABASE_URL` diisi database tes terpisah.
 - 14 dari 15 tes baru dibuktikan gagal di kode asli. Tes batas `page` ditambahkan belakangan dan belum diuji terhadap kode asli.
 
 ## Daftar file yang berubah

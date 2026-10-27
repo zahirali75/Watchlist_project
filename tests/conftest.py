@@ -9,7 +9,12 @@ from __future__ import annotations
 import os
 
 import pytest
+from dotenv import load_dotenv
 from fastapi.testclient import TestClient
+
+# Muat .env lebih dulu: app.core.config memvalidasi env saat boot, dan
+# TEST_DATABASE_URL hanya ada di .env (bukan di environment shell).
+load_dotenv()
 
 # Nilai env HARUS di-set sebelum app di-import, sebab app.core.config
 # memvalidasi env saat boot (memang itu tujuannya).
@@ -22,6 +27,7 @@ os.environ.setdefault("APP_ENV", "test")
 from app.core.rate_limit import login_throttle  # noqa: E402
 from app.core.security import create_access_token  # noqa: E402
 from app.main import app  # noqa: E402
+from app.auth import repository as token_repository  # noqa: E402
 from app.users import repository as user_repository  # noqa: E402
 
 USER_ID = "11111111-1111-1111-1111-111111111111"
@@ -42,6 +48,16 @@ def _isolasi_tes(request, monkeypatch):
             "find_identity",
             lambda user_id: {"id": user_id, "role": FAKE_ROLES[user_id]} if user_id in FAKE_ROLES else None,
         )
+        # Fungsi yang menyentuh tabel refresh_tokens/password_resets juga di-stub,
+        # supaya tes API tetap tidak butuh database. Tes yang ingin memeriksa
+        # perilakunya menimpa stub ini di dalam tesnya sendiri.
+        monkeypatch.setattr(token_repository, "create_refresh_token", lambda payload: {"id": "stub-refresh", **payload})
+        monkeypatch.setattr(token_repository, "find_refresh_token", lambda token_hash: None)
+        monkeypatch.setattr(token_repository, "revoke_refresh_token", lambda token_id: True)
+        monkeypatch.setattr(token_repository, "revoke_all_refresh_tokens", lambda user_id: 0)
+        monkeypatch.setattr(token_repository, "create_password_reset", lambda payload: {"id": "stub-reset", **payload})
+        monkeypatch.setattr(token_repository, "find_password_reset", lambda token_hash: None)
+        monkeypatch.setattr(token_repository, "mark_password_reset_used", lambda reset_id: True)
     yield
 
 

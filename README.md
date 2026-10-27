@@ -5,10 +5,10 @@ Dibangun dengan **FastAPI + PostgreSQL**, struktur **per fitur**, tanpa Supabase
 
 | Fitur | Ringkas |
 |---|---|
-| Auth | Registrasi, login, JWT (HS256), password PBKDF2-SHA256 600.000 rounds |
+| Auth | Registrasi, login, JWT (HS256) + **refresh token** (sesi 14 hari, rotasi), ganti & lupa password, password PBKDF2-SHA256 600.000 rounds |
 | Movies | Katalog film (baca publik, ubah khusus admin), pencarian, filter genre, pagination |
 | Watchlists | Watchlist pribadi per user (tambah, ubah status/catatan, hapus, statistik) |
-| Users | Daftar/detail/statistik user (khusus admin) |
+| Users | **Profil sendiri** (`/users/me`) untuk semua pengguna; daftar/detail/statistik user lain khusus admin |
 | Audit Logs | Catatan registrasi dan perubahan katalog (khusus admin) |
 
 ## Persyaratan
@@ -42,7 +42,9 @@ alembic current           # versi sekarang
 alembic downgrade -1      # mundur satu revision
 alembic check             # model SQLAlchemy == skema database?
 ```
-Database lama yang dibuat dari file SQL (`migrations/legacy_sql/`): jalankan `alembic stamp 0002`, tinjau revision `0003`, lalu `alembic upgrade head`. Detail: [docs/database.md](docs/database.md).
+Database lama yang dibuat dari file SQL (`migrations/legacy_sql/`): pastikan tabel `audit_logs` sudah ada, jalankan `alembic stamp 0002`, tinjau revision `0003` dan `0004`, lalu `alembic upgrade head`. Detail: [docs/database.md](docs/database.md).
+
+> **PERINGATAN:** `alembic stamp` tidak membuat tabel apa pun — ia hanya menandai revisi sebagai sudah dijalankan. Jalankan `stamp 0002` HANYA setelah memastikan tabel `audit_logs` benar-benar ada.
 
 ## Mengisi data film (opsional)
 ```bash
@@ -66,11 +68,12 @@ app/
 ├── core/                   # config, security (JWT/hash), exceptions, error_handlers,
 │                           # logging, pagination, rate_limit, constants
 ├── db/                     # session.py (engine), executor.py (SQL helper), base.py, models/
-├── auth/                   # router, service, schemas, dependencies (get_current_user, require_admin)
-├── users/                  # router, service, repository
+├── auth/                   # router, service, schemas, dependencies, repository (token sesi/reset)
+├── users/                  # router + me_router (profil sendiri), service, repository, schemas
 ├── movies/                 # router, service, repository, schemas
 ├── watchlists/             # router, service, repository, schemas
 ├── audit_logs/             # router, service, repository, schemas
+├── notifications/          # pengiriman email (lupa password; SMTP opsional)
 └── health/                 # router, service, repository
 migrations/                 # Alembic (env.py, versions/) + legacy_sql/ (arsip)
 tests/                      # unit/, api/, integration/

@@ -20,6 +20,7 @@ from app.auth.router import router as auth_router
 from app.db.session import dispose_engine
 from app.health.router import router as health_router
 from app.movies.router import router as movies_router
+from app.users.me_router import router as user_profile_router
 from app.users.router import router as users_router
 from app.watchlists.router import router as watchlists_router
 
@@ -63,6 +64,9 @@ def create_app() -> FastAPI:
         auth_router,
         movies_router,
         watchlists_router,
+        # Profil sendiri HARUS didaftarkan sebelum users_router (admin): kalau
+        # terbalik, "/users/me" akan tertangkap pola "/users/{user_id}" milik admin.
+        user_profile_router,
         users_router,
         audit_logs_router,
     ):

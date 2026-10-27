@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     # (mis. ke "none" atau algoritma asimetris yang tidak disiapkan).
     ALGORITHM: Literal["HS256"] = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(60, ge=1)
+    # Masa berlaku refresh token (hari). Access token boleh sering kedaluwarsa;
+    # refresh token yang membuat pengguna tidak perlu login ulang terus-menerus.
+    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(14, ge=1)
 
     # ---- Pembatas login (in-memory) ----
     # LOGIN_MAX_ATTEMPTS: gagal per (IP + email). LOGIN_IP_MAX_ATTEMPTS: gagal per IP
@@ -58,6 +61,20 @@ class Settings(BaseSettings):
 
     # ---- Opsional (dipakai script seeding) ----
     TMDB_API_KEY: str | None = None
+
+    # ---- Lupa password ----
+    # Masa berlaku tautan reset (menit). Sengaja pendek: tautan ini setara password.
+    PASSWORD_RESET_EXPIRE_MINUTES: int = Field(30, ge=1)
+    # Alamat API dipakai untuk menyusun tautan reset yang dikirim ke email.
+    APP_BASE_URL: str = "http://localhost:5173"
+    # SMTP opsional. Bila SMTP_HOST kosong, email DITULIS ke log server saja
+    # (mode pengembangan) - tidak ada email sungguhan yang terkirim.
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int = Field(587, ge=1)
+    SMTP_USER: str | None = None
+    SMTP_PASSWORD: str | None = None
+    SMTP_FROM: str = "no-reply@cinelist.local"
+    SMTP_USE_TLS: bool = True
 
     @field_validator("SECRET_KEY")
     @classmethod

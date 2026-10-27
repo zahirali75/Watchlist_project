@@ -1,7 +1,9 @@
 """Hashing password + pembuatan/pembacaan JWT."""
 from __future__ import annotations
 
+import hashlib
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -65,3 +67,22 @@ def decode_token(token: str) -> dict:
         raise UnauthorizedError("Token kedaluwarsa") from exc
     except jwt.PyJWTError as exc:
         raise UnauthorizedError("Token tidak valid") from exc
+
+
+# ---------------------------------------------------------------------------
+# Token buram (refresh token & token reset password)
+#
+# Keduanya adalah string acak, bukan JWT. Alasannya: token seperti ini harus
+# bisa DICABUT sebelum masa berlakunya habis (logout, ganti password). JWT tidak
+# bisa dicabut tanpa menyimpan daftar hitam, jadi kita simpan hash-nya di tabel.
+#
+# Yang masuk database hanya hash SHA-256, bukan token aslinya.
+# ---------------------------------------------------------------------------
+def generate_opaque_token(nbytes: int = 48) -> str:
+    """Token acak yang aman dipakai di URL atau body JSON."""
+    return secrets.token_urlsafe(nbytes)
+
+
+def hash_token(raw_token: str) -> str:
+    """SHA-256 heksadesimal (64 karakter) untuk disimpan di database."""
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()

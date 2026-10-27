@@ -1,6 +1,6 @@
 # Dokumentasi Database — CineList
 
-Skema di bawah diambil langsung dari PostgreSQL 16.15 setelah `alembic upgrade head` (head = `0004`). Pemeriksaan `alembic check` menyatakan tidak ada drift antara model SQLAlchemy dan database.
+Skema di bawah diambil langsung dari PostgreSQL 17.6 setelah `alembic upgrade head` (head = `0006`). Pemeriksaan `alembic check` menyatakan tidak ada drift antara model SQLAlchemy dan database.
 
 ## 1. Diagram
 
@@ -21,12 +21,12 @@ erDiagram
     MOVIES {
         int id PK "serial"
         varchar_255 title "NOT NULL, indeks"
-        int release_year "CHECK 1888-2100 (NOT VALID)"
+        int release_year "CHECK 1888-2100, tervalidasi"
         varchar_255 genre
         varchar_255 director
         text overview
         text poster_url
-        numeric_3_1 rating "CHECK 0-10 (NOT VALID)"
+        numeric_3_1 rating "CHECK 0-10, tervalidasi"
         timestamp created_at "default now()"
     }
     WATCHLISTS {
@@ -68,12 +68,12 @@ Constraint dan index: `users_pkey`, `users_email_key`, `uq_users_email_lower`, `
 |---|---|---|---|---|
 | id | integer | tidak | serial | PRIMARY KEY `movies_pkey` |
 | title | varchar(255) | tidak | | Index `idx_movies_title` |
-| release_year | integer | ya | | CHECK `movies_release_year_range`: 1888–2100, **NOT VALID** |
+| release_year | integer | ya | | CHECK `movies_release_year_range`: 1888–2100, tervalidasi |
 | genre | varchar(255) | ya | | |
 | director | varchar(255) | ya | | |
 | overview | text | ya | | |
 | poster_url | text | ya | | Validasi http/https ada di lapisan aplikasi, bukan di database |
-| rating | numeric(3,1) | ya | | CHECK `movies_rating_range`: 0–10, **NOT VALID** |
+| rating | numeric(3,1) | ya | | CHECK `movies_rating_range`: 0–10, tervalidasi |
 | created_at | timestamp | ya | now() | Tanpa zona waktu |
 
 Catatan: tidak ada UNIQUE pada judul. Menjalankan seeder dua kali menggandakan film (dicatat sebagai P3).
@@ -104,6 +104,32 @@ Constraint dan index: `watchlists_user_id_movie_id_key` (UNIQUE `user_id, movie_
 
 Index: `idx_audit_logs_created_by`, `idx_audit_logs_type`.
 
+### refresh_tokens (migrasi 0005)
+
+| Kolom | Tipe | Null | Default | Catatan |
+|---|---|---|---|---|
+| id | uuid | tidak | gen_random_uuid() | PRIMARY KEY `refresh_tokens_pkey` |
+| user_id | uuid | tidak | | FK `refresh_tokens_user_id_fkey` → users.id ON DELETE CASCADE |
+| token_hash | varchar(64) | tidak | | Hash SHA-256 token; UNIQUE INDEX `uq_refresh_tokens_token_hash`. Token asli tidak pernah disimpan |
+| expires_at | timestamptz | tidak | | 14 hari sejak dibuat (`REFRESH_TOKEN_EXPIRE_DAYS`) |
+| revoked_at | timestamptz | ya | | Diisi saat logout / ganti password / reset password |
+| created_at | timestamptz | tidak | now() | |
+
+Index: `idx_refresh_tokens_user_id`, `uq_refresh_tokens_token_hash`.
+
+### password_resets (migrasi 0006)
+
+| Kolom | Tipe | Null | Default | Catatan |
+|---|---|---|---|---|
+| id | uuid | tidak | gen_random_uuid() | PRIMARY KEY `password_resets_pkey` |
+| user_id | uuid | tidak | | FK `password_resets_user_id_fkey` → users.id ON DELETE CASCADE |
+| token_hash | varchar(64) | tidak | | Hash SHA-256; UNIQUE INDEX `uq_password_resets_token_hash`. Sekali pakai |
+| expires_at | timestamptz | tidak | | 30 menit (`PASSWORD_RESET_EXPIRE_MINUTES`) |
+| used_at | timestamptz | ya | | Diisi saat token dipakai |
+| created_at | timestamptz | tidak | now() | |
+
+Index: `idx_password_resets_user_id`, `uq_password_resets_token_hash`.
+
 ## 3. Relasi
 
 | Relasi | Kardinalitas | Perilaku hapus |
@@ -111,6 +137,8 @@ Index: `idx_audit_logs_created_by`, `idx_audit_logs_type`.
 | users → watchlists | 1 : banyak | CASCADE: menghapus user menghapus watchlist-nya |
 | movies → watchlists | 1 : banyak | CASCADE: menghapus film menghapus item watchlist yang memuatnya |
 | users → audit_logs | 0..1 : banyak | SET NULL: log dipertahankan dengan `created_by` kosong |
+| users → refresh_tokens | 1 : banyak | CASCADE: menghapus user mencabut semua sesinya |
+| users → password_resets | 1 : banyak | CASCADE: token reset ikut terhapus |
 
 Hubungan user dan film bersifat many-to-many melalui `watchlists`, dengan `UNIQUE (user_id, movie_id)` sehingga tidak ada duplikat.
 
@@ -122,8 +150,10 @@ Penghapusan film diam-diam menghapus item watchlist dari semua pengguna. Ini per
 |---|---|---|---|
 | 0001 | (base) | Tabel users, movies, watchlists, indeks dasar | Setara `legacy_sql/0001_initial_schema.sql` |
 | 0002 | 0001 | Tabel audit_logs dan dua indeks | Setara `legacy_sql/0002_audit_logs.sql` |
-| 0003 | 0002 | Role dan status NOT NULL, CHECK rating dan tahun (NOT VALID), UNIQUE lower(email) | Berhenti dengan pesan jelas bila ada email kembar |
+| 0003 | 0002 | Role dan status NOT NULL, CHECK rating dan tahun (dibuat NOT VALID), UNIQUE lower(email) | Berhenti dengan pesan jelas bila ada email kembar. Status NOT VALID diangkat setelah data diperiksa — lihat bagian 6 |
 | 0004 | 0003 | RLS aktif di users, movies, watchlists, audit_logs; grant ke `anon`/`authenticated` dicabut bila peran ada | Tidak mengubah kolom atau data. Downgrade hanya mematikan RLS, grant tidak dikembalikan. |
+| 0005 | 0004 | Tabel refresh_tokens (sesi yang bisa diperpanjang) | Hanya hash token yang disimpan. Sudah dijalankan di Supabase 27 Okt 2026. |
+| 0006 | 0005 | Tabel password_resets (token lupa password, sekali pakai) | Hanya hash token yang disimpan. Sudah dijalankan di Supabase 27 Okt 2026. |
 
 Urutan yang diuji: database kosong → `upgrade head` → `downgrade base` → `upgrade head` lagi. Semua lulus.
 
@@ -133,7 +163,7 @@ Migrasi 0003 tidak mengubah tipe `TIMESTAMP` menjadi `TIMESTAMPTZ`. Keputusan in
 
 Tidak ada perbedaan yang terdeteksi oleh `alembic check`. Perbedaan yang bersifat sengaja:
 
-- Constraint rating dan tahun berstatus NOT VALID di database. Model SQLAlchemy mendeklarasikannya dengan nama yang sama. Ini tidak menghasilkan drift karena Alembic tidak membandingkan status VALID.
+- Constraint rating dan tahun berstatus VALID di database (diangkat dari NOT VALID — lihat bagian 6). Model SQLAlchemy mendeklarasikannya dengan nama yang sama. Alembic tidak membandingkan status VALID, sehingga status ini tidak menghasilkan drift.
 - `movies.created_at`, `users.created_at`, `watchlists.*` memakai `TIMESTAMP`, sedangkan `audit_logs.created_at` memakai `TIMESTAMPTZ`.
 
 ## 5b. Keamanan paparan (migrasi 0004)
@@ -157,17 +187,25 @@ SELECT has_table_privilege('anon', 'users', 'SELECT') AS anon_bisa_baca,
        has_table_privilege('authenticated', 'users', 'SELECT') AS authenticated_bisa_baca;
 ```
 
-## 6. Langkah membersihkan constraint NOT VALID
+## 6. Constraint NOT VALID — sudah diselesaikan
 
-Setelah data lama diperiksa dan dibersihkan:
+Constraint `movies_rating_range` dan `movies_release_year_range` dibuat berstatus NOT VALID pada
+migrasi 0003 supaya migrasi tidak gagal sebelum data lama diperiksa. Status itu sudah diangkat:
 
 ```sql
 SELECT id, rating, release_year FROM movies
 WHERE (rating < 0 OR rating > 10) OR (release_year < 1888 OR release_year > 2100);
--- Jika kosong:
+-- Hasil pemeriksaan: 0 baris
+
 ALTER TABLE movies VALIDATE CONSTRAINT movies_rating_range;
 ALTER TABLE movies VALIDATE CONSTRAINT movies_release_year_range;
+-- Hasil: kedua constraint berstatus VALID
 ```
+
+Catatan: aturan rentang tetap ditegakkan untuk data baru walau berstatus NOT VALID; pengangkatan
+status ini yang membuat data lama ikut diperiksa. Dijalankan manual (bukan lewat migrasi) karena
+bergantung pada kondisi data. Bila database dipasang ulang dari nol, constraint dibuat NOT VALID
+lalu langsung divalidasi karena tabelnya masih kosong.
 
 ## 7. Arsip
 

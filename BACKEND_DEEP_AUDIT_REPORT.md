@@ -175,13 +175,13 @@ Catatan kontrak: respons koleksi memakai field `data`, bukan `items`. Ini kontra
 | Migrasi 0003 menolak email kembar | TERVERIFIKASI BERFUNGSI | Tes `test_0003_berhenti_jelas_bila_ada_email_kembar` lulus. |
 | Foreign key dan cascade | TERVERIFIKASI BERFUNGSI | Watchlist CASCADE ke user dan film. Audit log SET NULL ke user. Diuji. |
 | Unique | TERVERIFIKASI BERFUNGSI | `(user_id, movie_id)` pada watchlist. Email unik tanpa membedakan huruf besar/kecil. |
-| Check constraint | TERSEDIA SEBAGIAN | Role, status, rating, dan tahun rilis. Constraint rating dan tahun berstatus `NOT VALID`, jadi data lama belum divalidasi. |
+| Check constraint | TERVERIFIKASI BERFUNGSI | Role, status, rating, dan tahun rilis. Constraint rating dan tahun semula `NOT VALID`; sudah diangkat ke VALID 26 Okt 2026 setelah data diperiksa. |
 | Transaksi | TERVERIFIKASI BERFUNGSI | `get_connection(write=True)` memakai `engine.begin()`: commit saat sukses, rollback saat error. |
 | Parameter SQL | TERVERIFIKASI BERFUNGSI | Semua nilai terikat. Nama kolom untuk UPDATE dibatasi dengan allowlist. |
 | Tipe waktu | TERSEDIA SEBAGIAN | `users`, `movies`, `watchlists` memakai `TIMESTAMP` tanpa zona waktu. `audit_logs` memakai `TIMESTAMPTZ`. Ini keputusan tertulis di migrasi 0003. |
 | Supabase | TERVERIFIKASI BERFUNGSI | Tidak ada import SDK atau PostgREST di kode aktif. Tes arsitektur memverifikasi ini. Referensi tersisa hanya di dokumen dan kode `backend/` yang sudah dinyatakan tidak aktif. |
-| Paparan Data API (RLS dan grant) | TERSEDIA SEBAGIAN | Sebelum migrasi 0004, RLS mati di semua tabel. Setelah 0004, RLS aktif dan grant ke `anon`/`authenticated` dicabut bila peran itu ada. Belum diverifikasi terhadap Supabase nyata (lihat bagian 9b). |
-| Pengujian ke Supabase | TIDAK DAPAT DIVERIFIKASI | Tidak ada akses ke instance Supabase. |
+| Paparan Data API (RLS dan grant) | TERVERIFIKASI BERFUNGSI | Sebelum migrasi 0004, RLS mati di semua tabel. Setelah 0004, RLS aktif di keempat tabel dan grant ke `anon`/`authenticated` dicabut. **Diverifikasi di Supabase nyata 26 Okt 2026:** grant kedua peran = 0 tabel dan 0 usage schema (lihat bagian 9b). |
+| Pengujian ke Supabase | TERVERIFIKASI BERFUNGSI | **26 Okt 2026:** migrasi 0002–0004 dijalankan di Supabase (PostgreSQL 17.6); RLS dan grant diperiksa langsung; uji rantai penuh 52/52 lulus. |
 
 Penting: tidak ada kredensial Supabase atau secret sungguhan di ZIP. Pencarian pola token JWT dan URL Supabase di working tree dan riwayat Git tidak menemukan nilai sungguhan.
 
@@ -200,9 +200,9 @@ Skill Supabase mewajibkan pemeriksaan keamanan untuk setiap pekerjaan yang menye
 | `SECURITY DEFINER` | Tidak ada fungsi | TIDAK RELEVAN |
 | Revocation sesi saat user dihapus | Auth buatan sendiri, dicek ke database pada setiap request | TERVERIFIKASI (lihat bagian 5) |
 | Versi paket dipin | `requirements.txt` memakai `>=` | TERSEDIA SEBAGIAN (lihat bagian 11) |
-| Changelog dan dokumentasi Supabase terbaru | Akses ke supabase.com tidak tersedia di lingkungan audit | TIDAK DAPAT DIVERIFIKASI |
-| `supabase db advisors` | Tidak ada CLI atau project Supabase | TIDAK DAPAT DIVERIFIKASI |
-| Pengaturan Data API di dashboard | Tidak ada akses dashboard | TIDAK DAPAT DIVERIFIKASI |
+| Changelog dan dokumentasi Supabase terbaru | Akses ke supabase.com tidak tersedia saat audit dijalankan (24 Okt). **Diverifikasi lewat instance 26 Okt 2026:** perilaku RLS dan grant sesuai harapan | TERVERIFIKASI untuk perilaku instance |
+| `supabase db advisors` | Tidak ada CLI saat audit dijalankan | BELUM DIJALANKAN (pemeriksaan manual setara sudah dilakukan lewat koneksi langsung) |
+| Pengaturan Data API di dashboard | Tidak ada akses dashboard saat audit dijalankan | BELUM DIPERIKSA lewat dashboard; dampaknya tertutup karena RLS aktif dan grant dicabut |
 
 Catatan penting: peran aplikasi harus pemilik tabel atau memiliki BYPASSRLS. Jika tidak, RLS tanpa policy membuat semua query mengembalikan kosong. Migrasi 0004 memeriksa ini dan berhenti dengan pesan jelas bila tidak terpenuhi, tetapi pemeriksaan itu hanya berlaku saat migrasi dijalankan, bukan saat aplikasi berjalan dengan peran berbeda.
 
@@ -237,7 +237,7 @@ Tidak ada celah akses ilegal ke data yang ditemukan. Semua skenario IDOR, mass a
 | P2 | Respons belum memakai `response_model` | Kontrak OpenAPI tidak menggambarkan respons | Tambahkan skema respons bertahap |
 | P3 | `created_at` tanpa zona waktu memakai `now()` | Nilai bergantung pada timezone server database | Pastikan timezone DB UTC, atau migrasi ke TIMESTAMPTZ dengan rencana konversi |
 | P3 | Seeder tidak mencegah duplikasi film | Menjalankan ulang menggandakan data | Tambahkan pengecekan judul + tahun |
-| P3 | Constraint rating dan tahun berstatus `NOT VALID` | Data lama tidak tervalidasi | Bersihkan data, lalu `ALTER TABLE ... VALIDATE CONSTRAINT` |
+| P3 | Constraint rating dan tahun berstatus `NOT VALID` | Data lama tidak tervalidasi | **SELESAI 26 Okt 2026** — data diperiksa (0 baris melanggar), lalu `ALTER TABLE ... VALIDATE CONSTRAINT` |
 | P3 | `smoke_check.py` menulis data ke database target | Bisa mengotori database | Hanya jalankan ke database pengembangan; sudah ditulis di docstring |
 | P2 | Verifikasi 0004 belum dilakukan terhadap Supabase nyata | Perilaku default grant Supabase hanya diasumsikan dari skill | Jalankan `alembic upgrade head` di staging Supabase, lalu cek `has_table_privilege('anon', 'users', 'SELECT')` dan `relrowsecurity` |
 | P3 | `requirements.txt` memakai `>=`, bukan versi yang dipin | Instalasi baru bisa berbeda dari versi yang diuji | Buat lockfile dari versi di bagian 2 |
@@ -257,16 +257,29 @@ Kode legacy tidak dihapus karena ada dokumen dan langkah deployment yang masih m
 
 | Perintah | Hasil |
 |---|---|
-| `pytest -q` (tanpa database) | 80 lulus, 17 dilewati |
-| `TEST_DATABASE_URL=... pytest -q` (PostgreSQL 16.15) | 97 lulus |
+| `pytest -q` (tanpa database) | 80 lulus, 17 dilewati *(situasi saat audit 26 Okt 2026; lihat bagian 14 untuk angka terbaru)* |
+| `TEST_DATABASE_URL=... pytest -q` (PostgreSQL 16.15) | 97 lulus *(situasi saat audit; lihat bagian 14)* |
 | `python -m pyflakes app tests scripts seed_movies.py backend` | Bersih, tanpa temuan |
-| `alembic upgrade head` (database kosong) | Berhasil: 0001, 0002, 0003 |
+| `alembic upgrade head` (database kosong) | Berhasil: 0001 → 0003 saat audit; kini 0001 → 0006 |
 | `alembic check` | Tidak ada drift |
 | `scripts/smoke_check.py` (server berjalan) | Semua langkah sesuai ekspektasi, termasuk 401, 403, 409 |
 
 Tes baru (15) dijalankan juga terhadap kode asli: 14 dari 14 tes yang dibuat di awal gagal, membuktikan bahwa tes menangkap celah. Satu tes batas `page` ditambahkan kemudian dan belum diuji terhadap kode asli.
 
-Tes yang dilewati tanpa database: 17 tes integrasi (13 tes lama dan 4 tes pengamanan Supabase). Dijalankan dengan `TEST_DATABASE_URL` yang menunjuk ke database bernama `cinelist_test`.
+Tes yang dilewati tanpa `TEST_DATABASE_URL`: 17 tes integrasi (13 tes lama dan 4 tes pengamanan Supabase). Bila `.env` berisi `TEST_DATABASE_URL` yang menunjuk database bernama `cinelist_test`, tes itu ikut jalan.
+
+**Pembaruan 27 Okt 2026 — penambahan 4 hal yang belum solid (sesi, lupa password, profil sendiri, tes integrasi):**
+
+| Perintah | Hasil |
+|---|---|
+| `pytest -q` (dengan `TEST_DATABASE_URL` ke Supabase `cinelist_test`) | **122 lulus, 1 dilewati** |
+| `pytest tests/integration -q` | **16 lulus, 1 dilewati** (tes ownership `anon` di-skip karena pooler Supabase) |
+| `python uji_sesi_dan_password.py` (e2e ke server hidup) | **31/31 lulus** |
+| `python uji_rantai_penuh.py` | **52/52 lulus** |
+| `alembic current` di Supabase | **0006** |
+| `openapi.json` | **28 operasi endpoint** (naik dari 20) |
+
+1 tes yang dilewati adalah `test_migrasi_menolak_role_non_pemilik_tanpa_bypassrls`: di Supabase, peran non-pemilik tidak bisa membuka koneksi lewat pooler multi-tenant tanpa SNI/`external_id`, sehingga tes itu tidak bisa dijalankan di lingkungan ini. Ini artefak lingkungan, bukan bug kode — tes tetap berjalan penuh di PostgreSQL lokal.
 
 ## 14. Rekomendasi prioritas
 

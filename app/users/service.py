@@ -35,6 +35,23 @@ def find_auth_by_email(email: str) -> dict | None:
     return repo.find_auth_by_email(email)
 
 
+def find_auth_by_email_by_id(user_id: str) -> dict | None:
+    """KHUSUS ganti password: versi find_auth_by_email yang mencari dengan ID."""
+    return repo.find_auth_by_id(user_id)
+
+
+def get_own_profile(user_id: str) -> dict:
+    """Profil milik pengguna yang sedang login (endpoint /users/me)."""
+    return find_user_by_id(user_id)
+
+
+def update_own_profile(user_id: str, name: str) -> dict:
+    updated = repo.update_profile(user_id, name)
+    if not updated:
+        raise NotFoundError(f"User {user_id} tidak ditemukan")
+    return updated
+
+
 def create_user(payload: dict) -> dict | None:
     return repo.create(payload)
 

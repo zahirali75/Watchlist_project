@@ -31,12 +31,17 @@ Query `page` (≥1, default 1) dan `limit` (default 20, maks 100; melebihi → 4
 ## Endpoint
 Akses: **Publik**, **Login** (user/admin), **Admin**.
 
-| Method | Path | Akses | Keterangan |
+| Metode | Endpoint | Akses | Keterangan |
 |---|---|---|---|
-| GET | `/health` | Publik | Liveness (tanpa database) |
-| GET | `/health/db` | Publik | Readiness: `SELECT 1` (**penambahan baru**) |
-| POST | `/auth/register` | Publik | 201; role selalu `user` |
+| GET | `/health` | Publik | Liveness, tidak menyentuh database |
+| GET | `/health/db` | Publik | Readiness: `SELECT 1` |
+| POST | `/auth/register` | Publik | 201; role selalu `user`; respons juga memuat `refreshToken` (di root, seperti `accessToken`) |
 | POST | `/auth/login` | Publik | 200; 401 bila salah; 429 bila dibatasi |
+| POST | `/auth/refresh` | Publik | Body `{refreshToken}` → access + refresh token baru. Token **dirotasi**: yang lama langsung tidak berlaku |
+| POST | `/auth/logout` | Login | Body `{refreshToken}`; mencabut sesi perangkat ini saja |
+| POST | `/auth/change-password` | Login | Body `{currentPassword, newPassword}`; password lama salah → 401; **semua sesi dicabut** |
+| POST | `/auth/forgot-password` | Publik | Body `{email}`; jawaban selalu sama (tidak membocorkan email terdaftar) |
+| POST | `/auth/reset-password` | Publik | Body `{token, newPassword}`; token sekali pakai, berlaku 30 menit |
 | GET | `/movies` | Publik | Query: `search`, `genre`, `page`, `limit` |
 | GET | `/movies/{movie_id}` | Publik | |
 | POST | `/movies` | Admin | 201 |
@@ -48,6 +53,9 @@ Akses: **Publik**, **Login** (user/admin), **Admin**.
 | POST | `/watchlists` | Login | 201; 404 film tak ada; 409 duplikat |
 | PUT | `/watchlists/{id}` | Login (pemilik) | Hanya field yang dikirim; `notes: null` menghapus catatan; `status: null` → 400 |
 | DELETE | `/watchlists/{id}` | Login (pemilik) | |
+| GET | `/users/me` | Login | **Profil sendiri** (sebelumnya hanya ada versi admin, jadi user biasa selalu 403). Tanpa `password_hash` |
+| PUT | `/users/me` | Login | Ubah **nama** sendiri; email & role tidak bisa diubah dari sini |
+| GET | `/users/me/stats` | Login | Bentuk sama dengan `/watchlists/me/stats` |
 | GET | `/users` | Admin | Tanpa `password_hash` |
 | GET | `/users/{user_id}` | Admin | 404 bila tidak ada |
 | GET | `/users/{user_id}/stats` | Admin | 404 bila user tidak ada |
@@ -64,9 +72,30 @@ Alias lama tersembunyi dari Swagger (dipertahankan untuk kompatibilitas): `POST 
 → 201
 ```json
 {"success": true, "message": "Registrasi berhasil", "userId": "3a7ae716-f386-4167-80b8-2f32b77494a8",
- "email": "budi@example.com", "name": "Budi", "role": "user", "accessToken": "<JWT>"}
+ "email": "budi@example.com", "name": "Budi", "role": "user", "accessToken": "<JWT>", "refreshToken": "<token>"}
 ```
 `password`: min. 8 karakter. Login: body `{"email","password"}`, respons sama dengan "Login berhasil".
+
+**Perpanjang sesi** `POST /auth/refresh`
+```json
+{"refreshToken": "<token dari login>"}
+```
+→ 200
+```json
+{"success": true, "message": "Sesi diperpanjang", "accessToken": "<JWT baru>", "refreshToken": "<token baru>"}
+```
+Access token kedaluwarsa dalam 60 menit; refresh token 14 hari. Setiap kali dipakai, refresh token **diganti** (rotasi) — simpan yang baru. Token yang sudah dipakai/dicabut → 401.
+
+**Ganti password** `POST /auth/change-password` (header login wajib)
+```json
+{"currentPassword": "rahasia123", "newPassword": "rahasia456"}
+```
+→ 200 `{"success": true, "message": "Password berhasil diganti", "sessionsRevoked": 2}`. Seluruh sesi di semua perangkat langsung dicabut, jadi pengguna harus login ulang di perangkat lain.
+
+**Lupa password** `POST /auth/forgot-password` → body `{"email": "..."}`, jawaban **sama** untuk email terdaftar maupun tidak (mencegah penebakan email). Bila SMTP belum diatur (`SMTP_HOST` kosong), email tidak dikirim dan isinya hanya ditulis ke log server — jalur ini tetap bisa dicoba saat pengembangan.
+**Pasang password baru** `POST /auth/reset-password` → body `{"token": "<dari tautan email>", "newPassword": "..."}`. Token berlaku 30 menit dan hanya bisa dipakai sekali (400 bila dipakai ulang/kedaluwarsa).
+
+**Profil sendiri** `GET /users/me` → `{"success": true, "message": "Profil berhasil diambil", "data": {"id", "name", "email", "role", "created_at"}}` — tanpa `password_hash`. `PUT /users/me` body `{"name": "Nama Baru"}`.
 
 **Tambah film (admin)** `POST /movies`
 ```json
@@ -97,3 +126,6 @@ Aturan: `title`/`genre` wajib; `release_year` 1888–2100; `rating` 0–10; `pos
 - `notes` (watchlist) maksimal 2.000 karakter.
 - Login dibatasi dua lapis (HTTP 429 dengan `errorMeta.retryAfterSeconds`): per (IP + email) dan per IP untuk semua email. Batas diatur `LOGIN_MAX_ATTEMPTS` (5) dan `LOGIN_IP_MAX_ATTEMPTS` (50) dalam jendela `LOGIN_WINDOW_SECONDS` (300 detik).
 - `POST /auth/register` mengembalikan 409 "Email sudah terdaftar" (dengan email di `errorMeta`). Ini **sengaja dipertahankan** agar frontend dapat menampilkan pesan yang jelas; konsekuensinya email yang sudah terdaftar dapat diketahui dari endpoint ini. Login tetap memakai pesan generik.
+- **Sesi berlapis (sejak 27 Oktober 2026).** Access token (JWT) tetap berumur 60 menit; yang berumur panjang adalah **refresh token** (14 hari, `REFRESH_TOKEN_EXPIRE_DAYS`) dan disimpan di tabel `refresh_tokens` **hanya sebagai hash SHA-256**. Artinya bocornya isi tabel tidak langsung memberi akses. Refresh token **dirotasi** setiap dipakai dan dicabut saat logout, ganti password, atau lupa password (reset).
+- **Endpoint lupa password tidak membocorkan email terdaftar**: `/auth/forgot-password` menjawab 200 dengan pesan sama untuk email yang ada maupun tidak. (Berbeda dari register, yang memang sengaja 409.)
+- Modul `/users` dipisah dua: `/users/me` (login) dan `/users` + `/users/{id}` (admin). `/users/me` didaftarkan **lebih dulu** di `app/main.py` supaya tidak tertangkap pola `/users/{user_id}`.
