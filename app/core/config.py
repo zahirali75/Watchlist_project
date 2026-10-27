@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     # CORS_ORIGINS sengaja disimpan sebagai string (dipisah koma), bukan list[str].
     # Sebab pydantic-settings mem-parse field bertipe kompleks sebagai JSON dulu;
     # nilai "http://a,http://b" akan gagal di-parse sebelum validator sempat jalan.
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://localhost:3000"
 
     # ---- Direct PostgreSQL ----
     DATABASE_URL: str = Field(..., min_length=1, description="PostgreSQL DSN for the active API")
