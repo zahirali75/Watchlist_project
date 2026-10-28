@@ -17,7 +17,19 @@ def _base_env() -> dict:
 def test_settings_valid():
     settings = Settings(**{**_base_env(), "_env_file": None})
     assert settings.ALGORITHM == "HS256"
-    assert settings.cors_origins == ["http://localhost:5173", "http://localhost:3000"]
+    # Default harus memuat localhost DAN 127.0.0.1: bagi browser keduanya origin
+    # berbeda, jadi satu saja tidak cukup dan preflight yang lain dibalas 400.
+    for origin in (
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ):
+        assert origin in settings.cors_origins
 
 
 def test_secret_key_terlalu_pendek_ditolak(monkeypatch):

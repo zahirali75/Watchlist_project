@@ -33,7 +33,16 @@ class Settings(BaseSettings):
     # CORS_ORIGINS sengaja disimpan sebagai string (dipisah koma), bukan list[str].
     # Sebab pydantic-settings mem-parse field bertipe kompleks sebagai JSON dulu;
     # nilai "http://a,http://b" akan gagal di-parse sebelum validator sempat jalan.
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://localhost:3000"
+    # localhost dan 127.0.0.1 didaftarkan KEDUANYA: bagi browser keduanya origin
+    # BERBEDA, jadi menuliskan satu saja membuat frontend yang membuka satunya
+    # diblokir preflight (400) padahal backend sehat. Ditambah port port-berikutnya
+    # karena Vite otomatis bergeser 5173 -> 5174 bila portnya sudah terpakai.
+    CORS_ORIGINS: str = (
+        "http://localhost:5173,http://127.0.0.1:5173,"
+        "http://localhost:5174,http://127.0.0.1:5174,"
+        "http://localhost:4173,http://127.0.0.1:4173,"
+        "http://localhost:3000,http://127.0.0.1:3000"
+    )
 
     # ---- Direct PostgreSQL ----
     DATABASE_URL: str = Field(..., min_length=1, description="PostgreSQL DSN for the active API")
