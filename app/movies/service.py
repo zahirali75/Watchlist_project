@@ -13,9 +13,12 @@ from app.movies.schemas import MovieCreate, MovieUpdate
 def get_movies(
     search: str | None = None,
     genre: str | None = None,
+    media_type: str | None = None,
     pagination: Pagination | None = None,
 ) -> dict:
-    items, total = repo.find_all(search=search, genre=genre, pagination=pagination)
+    items, total = repo.find_all(
+        search=search, genre=genre, media_type=media_type, pagination=pagination
+    )
     return {"items": items, "total": total}
 
 

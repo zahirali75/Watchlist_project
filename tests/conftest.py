@@ -28,6 +28,7 @@ from app.core.rate_limit import login_throttle  # noqa: E402
 from app.core.security import create_access_token  # noqa: E402
 from app.main import app  # noqa: E402
 from app.auth import repository as token_repository  # noqa: E402
+from app.reviews import repository as review_repository  # noqa: E402
 from app.users import repository as user_repository  # noqa: E402
 
 USER_ID = "11111111-1111-1111-1111-111111111111"
@@ -58,6 +59,17 @@ def _isolasi_tes(request, monkeypatch):
         monkeypatch.setattr(token_repository, "create_password_reset", lambda payload: {"id": "stub-reset", **payload})
         monkeypatch.setattr(token_repository, "find_password_reset", lambda token_hash: None)
         monkeypatch.setattr(token_repository, "mark_password_reset_used", lambda reset_id: True)
+        # Modul reviews juga menyentuh database; default-nya kosong supaya tes API
+        # tidak butuh DB. Tes yang memeriksa perilakunya menimpa stub ini.
+        monkeypatch.setattr(review_repository, "find_by_movie", lambda movie_id, pagination=None: ([], 0))
+        monkeypatch.setattr(review_repository, "find_all_by_user", lambda user_id, pagination=None: ([], 0))
+        monkeypatch.setattr(review_repository, "find_all_for_moderation", lambda pagination=None: ([], 0))
+        monkeypatch.setattr(review_repository, "find_by_id", lambda review_id: None)
+        monkeypatch.setattr(review_repository, "find_by_user_and_movie", lambda user_id, movie_id: None)
+        monkeypatch.setattr(review_repository, "create", lambda payload: None)
+        monkeypatch.setattr(review_repository, "update", lambda review_id, payload: None)
+        monkeypatch.setattr(review_repository, "set_hidden", lambda review_id, is_hidden: None)
+        monkeypatch.setattr(review_repository, "delete", lambda review_id: None)
     yield
 
 

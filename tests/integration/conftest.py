@@ -57,8 +57,22 @@ def migrated_db(db_dsn: str) -> str:
 def clean_tables(migrated_db: str) -> str:
     """Kosongkan data antar tes (skema tetap)."""
     with psycopg.connect(migrated_db, autocommit=True) as conn:
-        conn.execute("TRUNCATE audit_logs, watchlists, movies, users RESTART IDENTITY CASCADE")
+        conn.execute("TRUNCATE audit_logs, watchlists, reviews, movies, users RESTART IDENTITY CASCADE")
     return migrated_db
+
+
+@pytest.fixture
+def schema_ke_head(db_dsn: str):
+    """Untuk tes yang SENGAJA menurunkan skema (downgrade / berhenti di revisi lama).
+
+    Tes seperti itu meninggalkan `public` tanpa tabel terbaru, dan karena
+    `migrated_db` berskopi session, tes BERIKUTNYA di satu sesi akan gagal dengan
+    "relation ... does not exist" yang menyesatkan. Fixture ini memulihkan skema
+    ke `head` setelah tes selesai - termasuk bila tesnya gagal (yield).
+    """
+    yield
+    reset_schema(db_dsn)
+    assert _alembic("upgrade", "head").returncode == 0, "gagal memulihkan skema tes ke head"
 
 
 @pytest.fixture

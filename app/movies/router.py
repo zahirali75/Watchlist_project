@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Query
 from app.auth.dependencies import require_admin
 from app.core.pagination import Pagination, pagination_params
 from app.movies import service
-from app.movies.schemas import MovieCreate, MovieUpdate
+from app.movies.schemas import MediaType, MovieCreate, MovieUpdate
 
 router = APIRouter(prefix="/movies", tags=["Movies Catalog"])
 
@@ -23,9 +23,16 @@ def _envelope(data, message: str, **extra) -> dict:
 def list_movies(
     search: str | None = Query(None, description="Cari film berdasarkan judul"),
     genre: str | None = Query(None, description="Filter berdasarkan genre"),
+    media_type: MediaType | None = Query(
+        None,
+        description="Filter jenis tayangan: 'movie' atau 'series'. Sebelumnya parameter ini "
+        "diterima tetapi diabaikan; sekarang benar-benar menyaring.",
+    ),
     pagination: Pagination = Depends(pagination_params),
 ):
-    result = service.get_movies(search=search, genre=genre, pagination=pagination)
+    result = service.get_movies(
+        search=search, genre=genre, media_type=media_type.value if media_type else None, pagination=pagination
+    )
     return {
         "success": True,
         "count": len(result["items"]),

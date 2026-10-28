@@ -35,6 +35,15 @@ EXPECTED = {
     ("GET", "/users/{user_id}/stats", True),
     ("GET", "/audit-logs", True),
     ("GET", "/audit-logs/{log_id}", True),
+    # --- Modul reviews (ditambahkan 28 Okt 2026, migrasi 0007) ---
+    ("GET", "/reviews/me", True),
+    ("GET", "/reviews/movie/{movie_id}", True),
+    ("GET", "/reviews/moderation", True),
+    ("GET", "/reviews/{review_id}", True),
+    ("POST", "/reviews", True),
+    ("PUT", "/reviews/{review_id}", True),
+    ("PATCH", "/reviews/{review_id}/moderation", True),
+    ("DELETE", "/reviews/{review_id}", True),
 }
 
 
@@ -48,8 +57,8 @@ def test_endpoint_terproteksi_menolak_tanpa_token(client):
     for method, path, needs_auth in EXPECTED:
         if needs_auth:
             url = path.replace("{movie_id}", "1").replace("{watchlist_id}", "1").replace("{log_id}", "1").replace(
-                "{user_id}", "11111111-1111-1111-1111-111111111111"
-            )
+                "{review_id}", "1"
+            ).replace("{user_id}", "11111111-1111-1111-1111-111111111111")
             assert client.request(method, url).status_code == 401, (method, path)
 
 

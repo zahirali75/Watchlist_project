@@ -10,6 +10,7 @@ from app.db.executor import execute_returning, fetch_all_with_count, fetch_one
 def find_all(
     search: str | None = None,
     genre: str | None = None,
+    media_type: str | None = None,
     pagination: Pagination | None = None,
 ) -> tuple[list[dict], int]:
     clauses: list[str] = []
@@ -20,6 +21,10 @@ def find_all(
     if genre:
         clauses.append("genre ILIKE :genre")
         params["genre"] = f"%{genre}%"
+    if media_type:
+        # Nilai sudah dibatasi oleh schema (MediaType), jadi aman dipakai di WHERE.
+        clauses.append("media_type = :media_type")
+        params["media_type"] = media_type
     where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
     limit_clause = ""
     if pagination:
@@ -39,15 +44,15 @@ def find_by_id(movie_id: int) -> dict | None:
 def create(payload: dict[str, Any]) -> dict | None:
     return execute_returning(
         """INSERT INTO movies
-           (title, release_year, genre, director, overview, poster_url, rating)
-           VALUES (:title, :release_year, :genre, :director, :overview, :poster_url, :rating)
+           (title, release_year, genre, director, overview, poster_url, rating, media_type)
+           VALUES (:title, :release_year, :genre, :director, :overview, :poster_url, :rating, :media_type)
            RETURNING *""",
         payload,
     )
 
 
 def update(movie_id: int, payload: dict[str, Any]) -> dict | None:
-    allowed = {"title", "release_year", "genre", "director", "overview", "poster_url", "rating"}
+    allowed = {"title", "release_year", "genre", "director", "overview", "poster_url", "rating", "media_type"}
     values = {key: value for key, value in payload.items() if key in allowed}
     if not values:
         return find_by_id(movie_id)

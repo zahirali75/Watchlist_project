@@ -11,10 +11,10 @@ def test_upgrade_dari_database_kosong_dan_model_sama_dengan_skema(migrated_db):
     assert result.returncode == 0, result.stdout + result.stderr
     with psycopg.connect(migrated_db) as conn:
         tables = {r[0] for r in conn.execute("SELECT tablename FROM pg_tables WHERE schemaname='public'")}
-    assert {"users", "movies", "watchlists", "audit_logs", "alembic_version"} <= tables
+    assert {"users", "movies", "watchlists", "audit_logs", "reviews", "alembic_version"} <= tables
 
 
-def test_downgrade_base_lalu_upgrade_lagi(db_dsn):
+def test_downgrade_base_lalu_upgrade_lagi(db_dsn, schema_ke_head):
     reset_schema(db_dsn)
     assert _alembic("upgrade", "head").returncode == 0
     assert _alembic("downgrade", "base").returncode == 0
@@ -24,7 +24,7 @@ def test_downgrade_base_lalu_upgrade_lagi(db_dsn):
     assert _alembic("upgrade", "head").returncode == 0
 
 
-def test_0003_berhenti_jelas_bila_ada_email_kembar(db_dsn):
+def test_0003_berhenti_jelas_bila_ada_email_kembar(db_dsn, schema_ke_head):
     reset_schema(db_dsn)
     assert _alembic("upgrade", "0002").returncode == 0
     with psycopg.connect(db_dsn, autocommit=True) as conn:
