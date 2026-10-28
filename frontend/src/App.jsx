@@ -220,7 +220,7 @@ function App() {
 
   return (
     <>
-      <AppShell view={view} mediaType={mediaType} onNavigate={handleNavigate} onOpenAuth={setDialog}>
+      <AppShell view={view} onNavigate={handleNavigate} onOpenAuth={setDialog}>
         {renderPage()}
       </AppShell>
 

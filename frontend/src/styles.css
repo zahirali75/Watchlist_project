@@ -89,9 +89,23 @@ main { flex: 1; width: 100%; }
   grid-template-columns: 1fr 1.5fr 1fr;
   align-items: center;
   gap: 20px;
-  border-bottom: 1px solid var(--line);
   position: relative;
   z-index: 2;
+}
+
+/* Header sengaja TANPA border-bottom sendiri.
+   Dulu header punya border-bottom 1px, lalu toolbar Discover tepat di bawahnya
+   punya border yang sama persis — dua garis 1px berjarak ~58px dengan latar
+   sama, sehingga header terbaca sebagai baris duplikat. Sekarang header ditutup
+   `header-rule` (garis tipis lebih redup), jadi hanya ada SATU garis tegas di
+   layar: milik toolbar. */
+.header-rule {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: #1b1b1b;
 }
 
 .brand {
@@ -164,6 +178,9 @@ main { flex: 1; width: 100%; }
 }
 
 .account-name:hover { color: #fff; }
+/* Nama akun = menu Profil di header; beri penanda halaman aktif yang sama
+   dengan main-nav supaya halaman Profil tidak tampak tanpa tab aktif. */
+.account-name.active { color: #fff; font-weight: 700; }
 
 .role-badge {
   padding: 2px 5px;

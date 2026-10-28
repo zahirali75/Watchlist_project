@@ -14,7 +14,7 @@ import Poster from "../../components/movie/Poster.jsx";
 import { EmptyState, ErrorState, SkeletonGrid } from "../../components/ui/States.jsx";
 import { useAsyncData, useDebounced } from "../../hooks/useAsyncData.js";
 import { formatRating, formatYear, joinGenres } from "../../lib/format.js";
-import { MEDIA_TYPE, mediaTypeLabel, mediaTypeQuery } from "../../lib/mediaType.js";
+import { MEDIA_TYPE, MEDIA_TYPE_FILTERS, mediaTypeLabel, mediaTypeQuery } from "../../lib/mediaType.js";
 
 function releaseTime(item) {
   return Number(item?.release_year) || 0;
@@ -124,7 +124,7 @@ export default function DiscoverPage({ mediaType, onMediaType, search, onSearch,
           />
         </label>
         <div className="stream-format" role="group" aria-label="Jenis tayangan">
-          {[MEDIA_TYPE.all, MEDIA_TYPE.movie, MEDIA_TYPE.series].map((value) => (
+          {MEDIA_TYPE_FILTERS.map(({ value, label }) => (
             <button
               type="button"
               key={value}
@@ -132,7 +132,7 @@ export default function DiscoverPage({ mediaType, onMediaType, search, onSearch,
               aria-pressed={mediaType === value}
               onClick={() => onMediaType(value)}
             >
-              {value === MEDIA_TYPE.all ? "Semua" : mediaTypeLabel(value, { plural: true })}
+              {label}
             </button>
           ))}
         </div>

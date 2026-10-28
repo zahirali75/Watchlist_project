@@ -19,7 +19,7 @@ import { useAuth } from "../../context/AuthContext.jsx";
 import { useToast } from "../../context/ToastContext.jsx";
 import { useAsyncData, useDebounced } from "../../hooks/useAsyncData.js";
 import { formatDate } from "../../lib/format.js";
-import { MEDIA_TYPE, mediaTypeQuery } from "../../lib/mediaType.js";
+import { MEDIA_TYPE, MEDIA_TYPE_FILTERS, mediaTypeQuery } from "../../lib/mediaType.js";
 
 const EMPTY_FORM = {
   title: "",
@@ -257,7 +257,7 @@ export default function CatalogAdminPage({ onOpen }) {
           />
         </label>
         <div className="segmented" role="group" aria-label="Filter jenis tayangan">
-          {[MEDIA_TYPE.all, MEDIA_TYPE.movie, MEDIA_TYPE.series].map((value) => (
+          {MEDIA_TYPE_FILTERS.map(({ value, label }) => (
             <button
               type="button"
               key={value}
@@ -265,7 +265,7 @@ export default function CatalogAdminPage({ onOpen }) {
               aria-pressed={mediaType === value}
               onClick={() => setMediaType(value)}
             >
-              {value === MEDIA_TYPE.all ? "Semua" : value === MEDIA_TYPE.movie ? "Film" : "Series"}
+              {label}
             </button>
           ))}
         </div>

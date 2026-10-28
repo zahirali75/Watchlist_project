@@ -15,13 +15,13 @@ import { useAuth } from "../../context/AuthContext.jsx";
 import ToastViewport from "../ui/ToastViewport.jsx";
 import TopBar, { bottomNavItems } from "./TopBar.jsx";
 
-export default function AppShell({ view, mediaType, onNavigate, onOpenAuth, children }) {
+export default function AppShell({ view, onNavigate, onOpenAuth, children }) {
   const { isAuthenticated, isAdmin } = useAuth();
   const bottomItems = bottomNavItems({ isAuthenticated, isAdmin });
 
   return (
     <div className="app-shell">
-      <TopBar view={view} mediaType={mediaType} onNavigate={onNavigate} onOpenAuth={onOpenAuth} />
+      <TopBar view={view} onNavigate={onNavigate} onOpenAuth={onOpenAuth} />
       <main>{children}</main>
       <footer>
         <span>
@@ -33,7 +33,9 @@ export default function AppShell({ view, mediaType, onNavigate, onOpenAuth, chil
       <nav className="bottom-nav" aria-label="Navigasi bawah">
         {bottomItems.map((item) => {
           const Icon = item.icon;
-          const active = view === item.view && (item.mediaType === undefined || item.mediaType === mediaType);
+          // Penanda aktif per halaman saja — sama alasannya dengan TopBar: jenis
+          // tayangan ditentukan chip filter, bukan menu navigasi.
+          const active = view === item.view;
           return (
             <button
               type="button"

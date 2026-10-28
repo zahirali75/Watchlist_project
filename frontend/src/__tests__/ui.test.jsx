@@ -160,7 +160,7 @@ describe("DiscoverPage (beranda) setelah redesign", () => {
 
     // Nilai yang dikirim ke backend tetap "movie" (bukan label "Film").
     const formatGroup = screen.getByRole("group", { name: "Jenis tayangan" });
-    expect(within(formatGroup).getByRole("button", { name: "Films" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(formatGroup).getByRole("button", { name: "Film" })).toHaveAttribute("aria-pressed", "true");
     expect(within(formatGroup).getByRole("button", { name: "Semua" })).toHaveAttribute("aria-pressed", "false");
   });
 });
@@ -197,7 +197,7 @@ describe("AppShell + navigasi setelah redesign", () => {
   it("memakai rute yang sama dengan sebelumnya saat menu diklik", async () => {
     const onNavigate = vi.fn();
     renderApp(
-      <AppShell view="discover" mediaType="all" onNavigate={onNavigate} onOpenAuth={vi.fn()}>
+      <AppShell view="discover" onNavigate={onNavigate} onOpenAuth={vi.fn()}>
         <p>isi halaman</p>
       </AppShell>,
     );
@@ -205,19 +205,66 @@ describe("AppShell + navigasi setelah redesign", () => {
     await waitFor(() => expect(authApi.getMyProfile).toHaveBeenCalled());
 
     const header = screen.getByRole("banner");
-    await userEvent.click(within(header).getByRole("button", { name: "Film" }));
-    expect(onNavigate).toHaveBeenCalledWith(expect.objectContaining({ view: "discover", mediaType: "movie" }));
+    // Header TIDAK lagi memuat filter jenis tayangan: dulu Film/Series ada di
+    // sini SEKALIGUS sebagai chip di toolbar Discover, sehingga tampak seperti
+    // baris duplikat. Sekarang hanya navigasi antar-halaman.
+    expect(within(header).queryByRole("button", { name: "Film" })).toBeNull();
+    expect(within(header).queryByRole("button", { name: "Series" })).toBeNull();
 
-    await userEvent.click(within(header).getByRole("button", { name: "Series" }));
-    expect(onNavigate).toHaveBeenCalledWith(expect.objectContaining({ view: "discover", mediaType: "series" }));
+    await userEvent.click(within(header).getByRole("button", { name: "Discover" }));
+    expect(onNavigate).toHaveBeenCalledWith(expect.objectContaining({ view: "discover", mediaType: "all" }));
 
     await userEvent.click(within(header).getByRole("button", { name: "Watchlist" }));
     expect(onNavigate).toHaveBeenCalledWith(expect.objectContaining({ view: "watchlist" }));
   });
 
+  it("tidak menaruh menu Profil di header (namun tetap ada di bilah bawah)", async () => {
+    renderApp(
+      <AppShell view="discover" onNavigate={vi.fn()} onOpenAuth={vi.fn()}>
+        <p>isi halaman</p>
+      </AppShell>,
+    );
+    await waitFor(() => expect(authApi.getMyProfile).toHaveBeenCalled());
+
+    // Nama akun inilah "menu Profil" di header: menuju Profil dan ditandai
+    // aktif saat halaman itu sedang dibuka. (Mock profil memakai nama "Uji".)
+    const accountBtn = within(screen.getByRole("banner")).getByRole("button", { name: /uji/i });
+    expect(accountBtn).toBeInTheDocument();
+
+    // Menu Profil terpisah di header tidak ada — tujuannya sudah di nama akun.
+    expect(within(screen.getByRole("banner")).queryByRole("button", { name: "Profil" })).toBeNull();
+    // Di layar kecil nama akun disembunyikan, jadi Profil HARUS tetap ada di bawah.
+    const bottomNav = screen.getByRole("navigation", { name: "Navigasi bawah" });
+    expect(within(bottomNav).getByRole("button", { name: "Profil" })).toBeInTheDocument();
+  });
+
+  it("menandai halaman aktif di header untuk tiap rute", async () => {
+    const { unmount } = renderApp(
+      <AppShell view="profile" onNavigate={vi.fn()} onOpenAuth={vi.fn()}>
+        <p>isi halaman</p>
+      </AppShell>,
+    );
+    await waitFor(() => expect(authApi.getMyProfile).toHaveBeenCalled());
+
+    // Halaman Profil: nama akun di kanan header jadi penanda halaman aktif.
+    const header = screen.getByRole("banner");
+    expect(within(header).getByRole("button", { name: /uji/i })).toHaveAttribute("aria-current", "page");
+    // Tidak ada tab Discover yang salah ikut menyala.
+    expect(within(header).queryByRole("button", { name: "Discover", current: "page" })).toBeNull();
+    unmount();
+
+    renderApp(
+      <AppShell view="discover" onNavigate={vi.fn()} onOpenAuth={vi.fn()}>
+        <p>isi halaman</p>
+      </AppShell>,
+    );
+    await waitFor(() => expect(authApi.getMyProfile).toHaveBeenCalled());
+    expect(within(screen.getByRole("banner")).getByRole("button", { name: "Discover" })).toHaveAttribute("aria-current", "page");
+  });
+
   it("menyediakan bilah navigasi bawah dengan menu yang sama dan maksimal 5 item", async () => {
     renderApp(
-      <AppShell view="watchlist" mediaType="all" onNavigate={vi.fn()} onOpenAuth={vi.fn()}>
+      <AppShell view="watchlist" onNavigate={vi.fn()} onOpenAuth={vi.fn()}>
         <p>isi halaman</p>
       </AppShell>,
     );
@@ -232,7 +279,7 @@ describe("AppShell + navigasi setelah redesign", () => {
 
   it("tidak menawarkan menu admin untuk pengguna biasa", async () => {
     renderApp(
-      <AppShell view="discover" mediaType="all" onNavigate={vi.fn()} onOpenAuth={vi.fn()}>
+      <AppShell view="discover" onNavigate={vi.fn()} onOpenAuth={vi.fn()}>
         <p>isi halaman</p>
       </AppShell>,
     );

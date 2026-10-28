@@ -18,15 +18,27 @@ export const MEDIA_TYPE = {
 /** Nilai yang boleh dikirim ke backend. "all" berarti parameter dihilangkan. */
 export const API_MEDIA_TYPES = [MEDIA_TYPE.movie, MEDIA_TYPE.series];
 
-/** Label untuk pengguna (Inggris, mengikuti bahasa antarmuka repo ini). */
-export function mediaTypeLabel(value, { plural = false } = {}) {
-  const singular = {
+/**
+ * Chip filter jenis tayangan (dipakai DiscoverPage).
+ *
+ * Dulu filter memakai bentuk jamak ("Films") sementara kartu dan halaman admin
+ * memakai "Film" — satu jenis tampil dengan dua ejaan berbeda di layar yang
+ * sama. Sekarang keduanya merujuk daftar ini, jadi ejaannya tidak bisa lagi
+ * menyimpang. Urutannya: paling umum lebih dulu (Semua → Film → Series).
+ */
+export const MEDIA_TYPE_FILTERS = [
+  { value: MEDIA_TYPE.all, label: "Semua" },
+  { value: MEDIA_TYPE.movie, label: "Film" },
+  { value: MEDIA_TYPE.series, label: "Series" },
+];
+
+/** Label satu judul (kartu, detail, baris watchlist). Selalu bentuk tunggal. */
+export function mediaTypeLabel(value) {
+  const labels = {
     [MEDIA_TYPE.movie]: "Film",
     [MEDIA_TYPE.series]: "Series",
   };
-  if (value === MEDIA_TYPE.all || !value) return plural ? "All titles" : "Title";
-  const label = singular[value] ?? "Title";
-  return plural ? (value === MEDIA_TYPE.movie ? "Films" : "Series") : label;
+  return labels[value] ?? "Judul";
 }
 
 /** Filter yang nilainya dihilangkan saat "all" dipilih. */
