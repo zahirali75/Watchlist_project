@@ -526,6 +526,22 @@ footer i { color: var(--accent); font-style: normal; padding: 0 6px; }
   transition: border-color var(--transition), background var(--transition);
 }
 .admin-form textarea, .review-form textarea { padding: 12px 13px; }
+
+/* Chrome/Edge mengisi otomatis field login dan MENIMPA background kita dengan
+   kuning terang (mode terang) atau biru-slate (mode gelap) — kotak jadi mencolok
+   di tema gelap. `box-shadow` inset dipakai karena background pada
+   `-webkit-autofill` tidak bisa ditimpa langsung; warna diambil dari palet panel
+   supaya isian autofill menyatu dengan modal. */
+.review-form input:-webkit-autofill,
+.auth-modal input:-webkit-autofill,
+.admin-form input:-webkit-autofill,
+.admin-form textarea:-webkit-autofill,
+.admin-form select:-webkit-autofill,
+.profile-card input:-webkit-autofill {
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
+  box-shadow: 0 0 0 100px var(--surface-2) inset, 0 0 0 1px var(--line) inset;
+}
 .review-form input:focus, .auth-modal input:focus, .admin-form input:focus,
 .admin-form textarea:focus, .admin-form select:focus, .profile-card input:focus,
 .review-form textarea:focus { border-color: var(--accent); background: var(--surface); }
