@@ -106,10 +106,6 @@ export default function TopBar({ view, onNavigate, onOpenAuth }) {
         {isAuthenticated ? MEMBER_ITEMS.filter((item) => !item.mobileOnly).map(renderItem) : null}
         {isAdmin ? ADMIN_ITEMS.map(renderItem) : null}
       </nav>
-      {/* Garis tipis penutup header: memisahkan baris ini dari garis yang sama
-          persis di toolbar Discover, supaya header tidak terbaca sebagai
-          salinan baris di bawahnya. */}
-      <span className="header-rule" aria-hidden="true" />
 
       <div className="account-actions">
         {isAuthenticated ? (

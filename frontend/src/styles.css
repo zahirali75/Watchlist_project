@@ -38,7 +38,15 @@
   --sans: 'DM Sans', system-ui, sans-serif;
 
   /* Spasi & bentuk */
-  --gap-page: 5.2%;
+  /* Sengaja memakai vw + clamp, bukan persen: nilai persen dihitung terhadap
+     lebar INDUK, sehingga `padding` di .app-shell dan `left` pada ::before pita
+     header menghasilkan angka berbeda (masing-masing 64.6px vs 57.9px) dan pita
+     latar berhenti ~7px sebelum tepi layar. vw tidak bergantung pada induk, jadi
+     keduanya selalu sama dan pita benar-benar menutup tepi. */
+  --gap-page: clamp(18px, 5.2vw, 84px);
+  /* Tinggi pita header; dipakai juga oleh baris filter Discover sebagai titik
+     tempel (sticky) supaya keduanya bergerak sebagai satu kesatuan. */
+  --topbar-h: 74px;
   --radius: 0px;
   --transition: .2s ease;
 }
@@ -83,29 +91,60 @@ h1, h2, h3, p, dl, dd { margin-top: 0; }
 
 main { flex: 1; width: 100%; }
 
+/* ---- Pita atas: header + baris filter, menempel sebagai satu kesatuan ----- */
+/* Header dan baris filter Discover sama-sama menempel (sticky) di atas: navigasi
+   dan pencarian tetap terjangkau sementara katalog digulir di belakangnya. Latar
+   kaca (setengah tembus + blur) dipakai BERSAMA keduanya sehingga terbaca sebagai
+   SATU pita, bukan dua baris terpisah — dan konten yang lewat tetap samar kelihatan.
+   TIDAK ada border-bottom di header: satu-satunya garis pemisah ada di ujung bawah
+   baris filter, jadi tidak ada dua garis kembar bertumpuk seperti dulu. */
 .topbar {
-  height: 74px;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: var(--topbar-h);
   display: grid;
   grid-template-columns: 1fr 1.5fr 1fr;
   align-items: center;
   gap: 20px;
-  position: relative;
-  z-index: 2;
 }
 
-/* Header sengaja TANPA border-bottom sendiri.
-   Dulu header punya border-bottom 1px, lalu toolbar Discover tepat di bawahnya
-   punya border yang sama persis — dua garis 1px berjarak ~58px dengan latar
-   sama, sehingga header terbaca sebagai baris duplikat. Sekarang header ditutup
-   `header-rule` (garis tipis lebih redup), jadi hanya ada SATU garis tegas di
-   layar: milik toolbar. */
-.header-rule {
+/* Pita latar ini menempel pada kolom .app-shell yang menyempit oleh --gap-page,
+   jadi tanpa perlakuan khusus latarnya berhenti ~5% dari tepi layar dan menyisakan
+   jalur konten yang menyembul di samping header ketika digulir. ::before melebarkan
+   HANYA latar (bukan isinya) selebar --gap-page ke tiap sisi, sehingga pita
+   menutup tepi layar sementara isi baris tetap sejajar dengan header.
+   Sengaja `calc(-1 * --gap-page)` dan bukan `width: 100vw`: 100vw ikut menghitung
+   lebar scrollbar sehingga pita jadi lebih lebar daripada area yang bisa digulir
+   dan memunculkan batang gulir horizontal. Cara ini tidak pernah melebihi lebar
+   halaman, jadi tidak butuh pemangkasan tambahan. */
+.topbar::before,
+.stream-toolbar::before {
+  content: '';
   position: absolute;
-  left: 0;
-  right: 0;
+  z-index: -1;
+  top: 0;
   bottom: 0;
-  height: 1px;
-  background: #1b1b1b;
+  left: calc(-1 * var(--gap-page));
+  right: calc(-1 * var(--gap-page));
+  background: #080808f7;
+}
+
+/* Satu-satunya garis pemisah pita ada di ujung BAWAH baris filter, dan ikut
+   melebar penuh bersama latarnya. Header sengaja tidak punya garis sendiri:
+   itulah yang dulu membuatnya terbaca sebagai baris duplikat. */
+.stream-toolbar::before {
+  border-bottom: 1px solid #262626;
+  box-shadow: 0 18px 30px -24px #000;
+}
+
+@supports (backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px)) {
+  .topbar::before,
+  .stream-toolbar::before {
+    background: #080808d1;
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    backdrop-filter: blur(18px) saturate(140%);
+  }
 }
 
 .brand {
@@ -616,13 +655,21 @@ footer i { color: var(--accent); font-style: normal; }
 /* ---- 5. Fitur: Discover / streaming ------------------------------------ */
 .streaming-home { padding-bottom: 60px; }
 
+/* Baris filter menempel TEPAT di bawah header (--topbar-h), jadi pita atas
+   tinggal satu kesatuan utuh saat digulir. z-index 2: di bawah header (3) supaya
+   tidak ada celah bertumpuk, tetapi tetap di atas kartu dan hero. */
 .stream-toolbar {
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 25px;
   padding: 17px 0;
-  border-bottom: 1px solid #262626;
 }
+
+/* Pita kaca selebar layar ditangani `::before` di bagian "Pita atas" atas:
+   hanya latarnya yang melebar, isi baris tetap sejajar dengan header. */
 
 .stream-search { width: min(330px, 42vw); flex: 0 1 auto; }
 .stream-format { display: flex; gap: 18px; }
@@ -869,12 +916,19 @@ footer i { color: var(--accent); font-style: normal; }
 }
 
 @media (max-width: 700px) {
-  .app-shell { padding: 0 18px; }
-  .topbar { height: auto; min-height: 68px; grid-template-columns: 1fr auto; gap: 0; }
+  /* --gap-page diubah di sini (bukan padding-nya) supaya pita latar header yang
+     melebar lewat `calc(-1 * var(--gap-page))` tetap pas menutup tepi layar. */
+  .app-shell { --gap-page: 18px; }
+  /* Tinggi header dibiarkan dari aturan dasar (--topbar-h) dan navigasi utama
+     disembunyikan: bilah bawah sudah memuat tujuan yang SAMA, jadi menampilkan
+     keduanya hanya menciptakan dua navigasi kembar. Efek sampingnya menguntungkan
+     — tinggi header jadi pasti satu baris, sehingga baris filter tahu tepat di
+     mana harus menempel (top: var(--topbar-h)) tanpa nilai yang ditebak-tebak. */
+  .topbar { grid-template-columns: 1fr auto; gap: 0; }
+  .main-nav { display: none; }
   .brand { font-size: 13px; }
   .brand-mark { width: 29px; height: 29px; }
-  .main-nav { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; gap: 21px; height: 42px; overflow-x: auto; }
-  .account-actions { grid-column: 2; grid-row: 1; gap: 6px; }
+  .account-actions { gap: 6px; }
   .account-name { display: none; }
 
   .page-heading { padding: 32px 0 25px; }

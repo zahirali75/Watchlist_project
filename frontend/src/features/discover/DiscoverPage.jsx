@@ -112,6 +112,8 @@ export default function DiscoverPage({ mediaType, onMediaType, search, onSearch,
 
   return (
     <div className="streaming-home">
+      {/* `stream-toolbar` ikut menempel di bawah header (lihat styles.css), jadi
+          pencarian selalu terjangkau tanpa menggulir balik. */}
       <section className="stream-toolbar">
         <label className="stream-search">
           <span className="search-glyph" aria-hidden="true" />
