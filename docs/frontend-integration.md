@@ -6,7 +6,7 @@ Semua contoh sesuai kontrak di [api.md](api.md) dan diuji terhadap server asli.
 | | Development | Production |
 |---|---|---|
 | Base URL | `http://localhost:8000` | `https://api.domain-anda.com` |
-| `CORS_ORIGINS` backend | `http://localhost:5173,http://localhost:3000` | domain frontend saja, mis. `https://app.domain-anda.com` |
+| `CORS_ORIGINS` backend | `http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:4173,http://127.0.0.1:4173,http://localhost:3000,http://127.0.0.1:3000` | domain frontend saja, mis. `https://app.domain-anda.com` |
 | Swagger `/docs` | aktif | mati (`APP_ENV=production`) |
 
 Vite: `.env` → `VITE_API_URL=http://localhost:8000`. Frontend di origin yang tidak terdaftar di `CORS_ORIGINS` akan diblokir browser (error CORS) — tambahkan origin-nya ke `.env` backend lalu restart. Gunakan HTTPS di production.

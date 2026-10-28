@@ -22,7 +22,8 @@ Cara cepat menemukan fitur bermasalah: **lihat nama logger di log** (`[app.auth]
 | 409 duplikat | Email / film sudah ada di watchlist | `service.py`, constraint UNIQUE | Bukan bug; tampilkan pesan ke user |
 | 422 | Body tidak sesuai skema | `schemas.py` fitur | Baca `data.errorMeta[].location` |
 | 400 "limit maksimal 100" | `limit` terlalu besar | `app/core/pagination.py` | Kecilkan `limit` |
-| Browser: "blocked by CORS" | Origin frontend belum terdaftar | `CORS_ORIGINS` di `.env`, `app/main.py` | Tambahkan origin persis (skema+host+port), restart |
+| Browser: "blocked by CORS" / fetch gagal total ("API tidak bisa dijangkau") | Origin frontend belum terdaftar di `CORS_ORIGINS` | `CORS_ORIGINS` di `.env`, `app/main.py` | **Cek port frontend yang sebenarnya** (console: `location.origin`). Vite otomatis pindah ke **5174** bila 5173 terpakai — origin 5174 harus terdaftar juga. Perhatikan `localhost:5174` ≠ `127.0.0.1:5174`: browser menganggapnya origin BERBEDA, daftarkan keduanya. Tambah origin persis (skema+host+port), restart server. |
+| Frontend jalan tapi "API tidak bisa dijangkau", padahal `curl /health/db` = 200 | Backend lama (kode usang) masih memegang port 8000; proses `--reload` basi menutupi kode terbaru | Proses uvicorn ganda | Cek jumlah listener: `netstat -ano \| findstr :8000` (harus SATU PID). Bandingkan rute: `curl -s localhost:8000/openapi.json \| findstr /c:"/reviews"` — hilang = menjalankan kode lama. Matikan semua lalu jalankan `./run.sh` sekali saja. |
 | `/docs` 404 | `APP_ENV=production` | `app/main.py` | Gunakan `APP_ENV=development` |
 | Frontend salah baca response | Kontrak berbeda dari dugaan | `docs/api.md`, `schemas.py`, `router.py` | Bandingkan dengan `/openapi.json` & contoh di api.md |
 | 500 `INTERNAL_ERROR` | Bug tak terduga | Log server | Cari traceback `Unhandled error pada <METHOD> <path>` → file fitur sesuai path |
