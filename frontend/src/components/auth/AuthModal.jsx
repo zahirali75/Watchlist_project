@@ -6,6 +6,7 @@
  * error 422 dari backend dipetakan kembali ke field yang salah.
  */
 import React, { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 import { ApiError } from "../../api/index.js";
 import { useAuth } from "../../context/AuthContext.jsx";
@@ -18,6 +19,7 @@ export default function AuthModal({ mode, onClose, onSwitch, onForgot }) {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const isRegister = mode === "register";
 
   function update(field, value) {
@@ -92,14 +94,24 @@ export default function AuthModal({ mode, onClose, onSwitch, onForgot }) {
 
         <label>
           Password
-          <input
-            required
-            type="password"
-            minLength={isRegister ? 8 : undefined}
-            value={form.password}
-            onChange={(event) => update("password", event.target.value)}
-            autoComplete={isRegister ? "new-password" : "current-password"}
-          />
+          <span className="password-field">
+            <input
+              required
+              type={showPassword ? "text" : "password"}
+              minLength={isRegister ? 8 : undefined}
+              value={form.password}
+              onChange={(event) => update("password", event.target.value)}
+              autoComplete={isRegister ? "new-password" : "current-password"}
+            />
+            <button
+              type="button"
+              className="password-toggle"
+              onClick={() => setShowPassword((value) => !value)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+            </button>
+          </span>
           {isRegister ? <small className="field-hint">Minimal 8 karakter.</small> : null}
         </label>
 

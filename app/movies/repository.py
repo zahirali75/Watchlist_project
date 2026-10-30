@@ -7,11 +7,21 @@ from app.core.pagination import Pagination
 from app.db.executor import execute_returning, fetch_all_with_count, fetch_one
 
 
+# Urutan yang boleh dipilih klien. Nilai dipetakan ke potongan SQL tetap (whitelist),
+# jadi input pengguna tidak pernah disisipkan langsung ke ORDER BY.
+SORT_ORDERS = {
+    "id": "id ASC",
+    "rating_desc": "rating DESC, id ASC",
+    "year_desc": "release_year DESC, id DESC",
+}
+
+
 def find_all(
     search: str | None = None,
     genre: str | None = None,
     media_type: str | None = None,
     pagination: Pagination | None = None,
+    sort: str | None = None,
 ) -> tuple[list[dict], int]:
     clauses: list[str] = []
     params: dict[str, Any] = {}
@@ -31,7 +41,7 @@ def find_all(
         params.update(limit=pagination.limit, offset=pagination.offset)
         limit_clause = " LIMIT :limit OFFSET :offset"
     return fetch_all_with_count(
-        f"SELECT * FROM movies{where} ORDER BY id ASC{limit_clause}",
+        f"SELECT * FROM movies{where} ORDER BY {SORT_ORDERS.get(sort or 'id', SORT_ORDERS['id'])}{limit_clause}",
         f"SELECT COUNT(*) FROM movies{where}",
         params,
     )

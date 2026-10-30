@@ -22,6 +22,8 @@ import CatalogAdminPage from "./features/admin/CatalogAdminPage.jsx";
 import { ForgotPasswordPage, ResetPasswordPage } from "./features/auth/PasswordPages.jsx";
 import ProfilePage from "./features/auth/ProfilePage.jsx";
 import DiscoverPage from "./features/discover/DiscoverPage.jsx";
+import GenresPage from "./features/discover/GenresPage.jsx";
+import HomePage from "./features/home/HomePage.jsx";
 import MovieDetailPage from "./features/reviews/MovieDetailPage.jsx";
 import ReviewsPage from "./features/reviews/ReviewsPage.jsx";
 import WatchlistPage from "./features/watchlist/WatchlistPage.jsx";
@@ -71,10 +73,13 @@ function App() {
   const [search, setSearch] = useState("");
   const [genre, setGenre] = useState("");
   const [mediaType, setMediaType] = useState(MEDIA_TYPE.all);
+  const [sort, setSort] = useState("id");
+  // Naik setiap kali watchlist berubah dari luar panel Home (hero, kartu poster).
+  const [watchlistVersion, setWatchlistVersion] = useState(0);
 
   // Hash kosong → tulis rute awal supaya tombol Back tidak keluar dari aplikasi.
   useEffect(() => {
-    if (!window.location.hash) navigate("discover");
+    if (!window.location.hash) navigate("home");
   }, []);
 
   function openMovie(item) {
@@ -82,25 +87,31 @@ function App() {
     if (id) window.location.hash = buildHash("movie", id);
   }
 
-  /**
-   * Navigasi dari header. Item menu Discover/Film/Series membawa `mediaType`,
-   * sedangkan menu member/admin tidak — jadi hanya jenis tayangan yang benar-
-   * benar dikirim yang boleh menimpa state filter.
-   */
+  /** Navigasi dari header, footer, dan menu akun. */
   function handleNavigate(item) {
-    if (item.mediaType !== undefined) setMediaType(item.mediaType);
-    if (item.view === "discover") {
+    if (item.view === "movies") {
       setSearch("");
       setGenre("");
+      setMediaType(MEDIA_TYPE.all);
+      setSort("id");
     }
     go(item.view);
   }
 
-  function goDiscover(nextType = MEDIA_TYPE.all) {
-    setMediaType(nextType);
-    setSearch("");
+  /** Pencarian dari header → GET /movies?search=… di halaman Movies. */
+  function handleSearch(value) {
+    setSearch(value);
     setGenre("");
-    go("discover");
+    go("movies");
+  }
+
+  /** "View All" Trending/New Releases → katalog dengan urutan yang sama. */
+  function goMovies({ nextSort = "id", nextGenre = "" } = {}) {
+    setMediaType(MEDIA_TYPE.all);
+    setSearch("");
+    setGenre(nextGenre);
+    setSort(nextSort);
+    go("movies");
   }
 
   /** Tambah ke watchlist dari halaman mana pun. 409 = sudah ada, bukan kegagalan. */
@@ -111,17 +122,18 @@ function App() {
     }
     try {
       await withAuth((token) => watchlistApi.addToWatchlist({ movieId: item.id, status: "want_to_watch" }, token));
-      toast.success(`"${item.title}" ditambahkan ke watchlist.`);
+      toast.success(`"${item.title}" added to your watchlist.`);
+      setWatchlistVersion((value) => value + 1);
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
-        toast.info("Judul ini sudah ada di watchlist kamu.");
+        toast.info("This title is already in your watchlist.");
       } else {
         toast.error(error.message);
       }
     }
   }
 
-  function renderDiscover() {
+  function renderMovies() {
     return (
       <DiscoverPage
         mediaType={mediaType}
@@ -130,6 +142,8 @@ function App() {
         onSearch={setSearch}
         genre={genre}
         onGenre={setGenre}
+        sort={sort}
+        onSort={setSort}
         onOpen={openMovie}
         onAdd={addToWatchlist}
       />
@@ -165,7 +179,7 @@ function App() {
           />
           <div className="auth-gate">
             <p>Akunmu berperan sebagai pengguna biasa, jadi halaman admin tidak tersedia.</p>
-            <button type="button" className="primary-button" onClick={() => goDiscover()}>
+            <button type="button" className="primary-button" onClick={() => goMovies()}>
               Kembali ke katalog
             </button>
           </div>
@@ -177,7 +191,7 @@ function App() {
       <>
         <PageHeading section={page.section} index={page.index} title={page.title} description={page.description} />
         {view === "watchlist" ? (
-          <WatchlistPage onOpen={openMovie} onBrowse={() => goDiscover()} />
+          <WatchlistPage onOpen={openMovie} onBrowse={() => goMovies()} />
         ) : view === "my-reviews" ? (
           <ReviewsPage onOpenMovie={openMovie} />
         ) : view === "moderation" ? (
@@ -206,7 +220,7 @@ function App() {
           />
           <MovieDetailPage
             movieId={movieId}
-            onBack={() => goDiscover(mediaType)}
+            onBack={() => goMovies()}
             onAdd={addToWatchlist}
             onRequireAuth={() => setDialog("login")}
           />
@@ -215,12 +229,24 @@ function App() {
     }
 
     if (MEMBER_PAGES[view]) return renderMemberPage();
-    return renderDiscover();
+    if (view === "movies") return renderMovies();
+    if (view === "genres") return <GenresPage onGenre={(name) => goMovies({ nextGenre: name })} />;
+    return (
+      <HomePage
+        watchlistVersion={watchlistVersion}
+        onOpen={openMovie}
+        onAdd={addToWatchlist}
+        onViewAll={(nextSort) => goMovies({ nextSort })}
+        onGenre={(name) => goMovies({ nextGenre: name })}
+        onNavigate={handleNavigate}
+        onOpenAuth={setDialog}
+      />
+    );
   }
 
   return (
     <>
-      <AppShell view={view} onNavigate={handleNavigate} onOpenAuth={setDialog}>
+      <AppShell view={view} query={search} onNavigate={handleNavigate} onOpenAuth={setDialog} onSearch={handleSearch}>
         {renderPage()}
       </AppShell>
 

@@ -10,7 +10,9 @@
 import { useCallback, useEffect, useState } from "react";
 
 const ROUTES = new Set([
-  "discover",
+  "home",
+  "movies",
+  "genres",
   "watchlist",
   "my-reviews",
   "moderation",
@@ -56,7 +58,8 @@ export function useRoute() {
 
   const { segments, params } = route;
   const [first, second] = segments;
-  const view = first === "movie" ? "movie" : ROUTES.has(first) ? first : "discover";
+  // "discover" = nama rute lama (tautan tersimpan) → sekarang Home.
+  const view = first === "movie" ? "movie" : ROUTES.has(first) ? first : "home";
   const movieId = first === "movie" && second ? Number(second) : null;
 
   return {

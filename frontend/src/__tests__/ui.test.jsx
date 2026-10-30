@@ -1,5 +1,5 @@
 /**
- * Tes UI hasil redesign: membuktikan tata letak baru TIDAK memutus mata rantai
+ * Tes UI hasil redesign Black & Gold: membuktikan tata letak baru TIDAK memutus mata rantai
  * antara tampilan dan data.
  *
  * Yang diuji di sini bukan warna atau CSS, melainkan hal yang bisa rusak diam-
@@ -23,6 +23,7 @@ import { AuthProvider } from "../context/AuthContext.jsx";
 import { ToastProvider } from "../context/ToastContext.jsx";
 import AppShell from "../components/layout/AppShell.jsx";
 import DiscoverPage from "../features/discover/DiscoverPage.jsx";
+import HomePage from "../features/home/HomePage.jsx";
 import WatchlistPage from "../features/watchlist/WatchlistPage.jsx";
 
 const CATALOG = [
@@ -85,9 +86,9 @@ vi.mock("../api/index.js", () => {
   };
 });
 
-const { authApi, watchlistApi } = await import("../api/index.js");
+const { authApi, moviesApi, watchlistApi } = await import("../api/index.js");
 
-/** Prop dasar DiscoverPage; tiap tes hanya menimpa yang relevan. */
+/** Prop dasar DiscoverPage (halaman Movies); tiap tes hanya menimpa yang relevan. */
 const discoverProps = (overrides = {}) => ({
   mediaType: "all",
   onMediaType: vi.fn(),
@@ -95,8 +96,30 @@ const discoverProps = (overrides = {}) => ({
   onSearch: vi.fn(),
   genre: "",
   onGenre: vi.fn(),
+  sort: "id",
+  onSort: vi.fn(),
   onOpen: vi.fn(),
   onAdd: vi.fn(),
+  ...overrides,
+});
+
+const homeProps = (overrides = {}) => ({
+  watchlistVersion: 0,
+  onOpen: vi.fn(),
+  onAdd: vi.fn(),
+  onViewAll: vi.fn(),
+  onGenre: vi.fn(),
+  onNavigate: vi.fn(),
+  onOpenAuth: vi.fn(),
+  ...overrides,
+});
+
+const shellProps = (overrides = {}) => ({
+  view: "home",
+  query: "",
+  onNavigate: vi.fn(),
+  onOpenAuth: vi.fn(),
+  onSearch: vi.fn(),
   ...overrides,
 });
 
@@ -121,47 +144,111 @@ function renderApp(ui) {
   );
 }
 
-describe("DiscoverPage (beranda) setelah redesign", () => {
-  it("menampilkan katalog dari API, memakai gambar poster bila ada dan teks fallback bila tidak", async () => {
-    render(<DiscoverPage {...discoverProps()} />);
+describe("Halaman Movies", () => {
+  it("mengirim filter ke API dan memakai poster bila ada, teks fallback bila tidak", async () => {
+    render(<DiscoverPage {...discoverProps({ search: "echo", genre: "Drama", sort: "rating_desc" })} />);
 
-    expect(await screen.findByRole("heading", { name: /Echoes of Tomorrow/i })).toBeInTheDocument();
-    // poster_url terisi → <img> dengan alt bermakna untuk pembaca layar.
     expect(await screen.findByAltText("Poster Echoes of Tomorrow")).toBeInTheDocument();
-    // poster_url kosong → fallback teks, bukan gambar rusak.
     expect(screen.queryByAltText("Poster Northern Light")).toBeNull();
     expect(screen.getAllByText("Northern Light").length).toBeGreaterThan(0);
+
+    // Pencarian/genre/urutan diteruskan ke GET /movies, bukan disaring di browser.
+    expect(moviesApi.listMovies).toHaveBeenCalledWith(
+      expect.objectContaining({ search: "echo", genre: "Drama", sort: "rating_desc", page: 1 }),
+    );
   });
 
-  it("meneruskan objek judul yang benar saat kartu dibuka dan saat ditambah ke watchlist", async () => {
+  it("meneruskan objek judul yang benar saat kartu dibuka dan ditambah ke watchlist", async () => {
     const onOpen = vi.fn();
     const onAdd = vi.fn();
     render(<DiscoverPage {...discoverProps({ onOpen, onAdd })} />);
 
-    // Kartu di dalam rail (bukan hero) — dipilih lewat aria-label tombolnya.
-    const addButtons = await screen.findAllByLabelText("Tambah Northern Light ke watchlist");
-    await userEvent.click(addButtons[0]);
-    expect(onAdd).toHaveBeenCalledTimes(1);
+    await userEvent.click(await screen.findByLabelText("Add Northern Light to watchlist"));
     expect(onAdd.mock.calls[0][0]).toMatchObject({ id: 2, title: "Northern Light" });
 
-    const openButtons = await screen.findAllByLabelText("Buka Northern Light");
-    await userEvent.click(openButtons[0]);
-    expect(onOpen).toHaveBeenCalled();
+    await userEvent.click(screen.getByLabelText("Open Northern Light"));
     expect(onOpen.mock.calls.at(-1)[0]).toMatchObject({ id: 2, title: "Northern Light" });
   });
 
-  it("meneruskan ketikan pencarian ke induk dan menandai filter jenis yang aktif", async () => {
+  it("menandai filter jenis yang aktif dan mengirim nilai API (movie), bukan label", async () => {
+    render(<DiscoverPage {...discoverProps({ mediaType: "movie" })} />);
+    await screen.findByAltText("Poster Echoes of Tomorrow");
+
+    const group = screen.getByRole("group", { name: "Media type" });
+    expect(within(group).getByRole("button", { name: "Film" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(group).getByRole("button", { name: "Semua" })).toHaveAttribute("aria-pressed", "false");
+    expect(moviesApi.listMovies).toHaveBeenCalledWith(expect.objectContaining({ mediaType: "movie" }));
+  });
+
+  it("menampilkan empty state dengan jalan keluar saat hasil kosong", async () => {
+    moviesApi.listMovies.mockResolvedValueOnce({ items: [], total: 0, count: 0, page: 1, limit: 20 });
     const onSearch = vi.fn();
-    render(<DiscoverPage {...discoverProps({ mediaType: "movie", onSearch })} />);
+    render(<DiscoverPage {...discoverProps({ search: "zzz", onSearch })} />);
 
-    const input = screen.getByLabelText("Cari judul film atau series");
-    await userEvent.type(input, "echo");
-    expect(onSearch).toHaveBeenCalled();
+    expect(await screen.findByText("No movies match")).toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole("button", { name: /clear filters/i })[0]);
+    expect(onSearch).toHaveBeenCalledWith("");
+  });
+});
 
-    // Nilai yang dikirim ke backend tetap "movie" (bukan label "Film").
-    const formatGroup = screen.getByRole("group", { name: "Jenis tayangan" });
-    expect(within(formatGroup).getByRole("button", { name: "Film" })).toHaveAttribute("aria-pressed", "true");
-    expect(within(formatGroup).getByRole("button", { name: "Semua" })).toHaveAttribute("aria-pressed", "false");
+describe("Halaman Home", () => {
+  it("memuat hero + Trending (rating_desc), New Releases (year_desc), genre, dan statistik dari API", async () => {
+    renderApp(<HomePage {...homeProps()} />);
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Echoes of Tomorrow" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Trending Now" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "New Releases" })).toBeInTheDocument();
+
+    expect(moviesApi.listMovies).toHaveBeenCalledWith(expect.objectContaining({ sort: "rating_desc", limit: 5 }));
+    expect(moviesApi.listMovies).toHaveBeenCalledWith(expect.objectContaining({ sort: "year_desc", limit: 5 }));
+    // Hitungan genre berasal dari `total` respons, bukan angka tetap.
+    expect(moviesApi.listMovies).toHaveBeenCalledWith(expect.objectContaining({ genre: "Drama", limit: 1 }));
+
+    // Statistik dari /users/me/stats (mock: total 1).
+    await waitFor(() => expect(authApi.getMyStats).toHaveBeenCalledWith("token-uji"));
+    const summary = screen.getByRole("heading", { name: "Watchlist Summary" }).closest("section");
+    await waitFor(() => expect(within(summary).getByText("Total Movies").nextElementSibling).toHaveTextContent("1"));
+  });
+
+  it("tidak menampilkan Watch Trailer: backend tidak punya URL trailer", async () => {
+    renderApp(<HomePage {...homeProps()} />);
+    await screen.findByRole("heading", { level: 1, name: "Echoes of Tomorrow" });
+    expect(screen.queryByRole("button", { name: /watch trailer/i })).toBeNull();
+  });
+
+  it("Add to Watchlist di hero memanggil onAdd dengan film yang sedang tampil", async () => {
+    const onAdd = vi.fn(async () => {});
+    renderApp(<HomePage {...homeProps({ onAdd })} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /add to watchlist/i }));
+    expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ id: 1, title: "Echoes of Tomorrow" }));
+  });
+
+  it("panel My Watchlist memfilter status lewat API dan mengubah status lewat menu baris", async () => {
+    renderApp(<HomePage {...homeProps()} />);
+
+    expect((await screen.findAllByText("Midnight Signal")).length).toBeGreaterThan(0);
+    await userEvent.click(screen.getByRole("button", { name: /^Watching/ }));
+    await waitFor(() =>
+      expect(watchlistApi.listMyWatchlist).toHaveBeenCalledWith(expect.objectContaining({ status: "watching", limit: 4 })),
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "Actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Mark as Watched" }));
+    // Argumen pertama = id BARIS watchlist (9), bukan id film (54).
+    await waitFor(() => expect(watchlistApi.updateWatchlistItem).toHaveBeenCalledWith(9, { status: "watched" }, "token-uji"));
+  });
+
+  it("pengunjung anonim melihat ajakan login, bukan watchlist atau statistik palsu", async () => {
+    sessionStorage.clear();
+    const onOpenAuth = vi.fn();
+    renderApp(<HomePage {...homeProps({ onOpenAuth })} />);
+
+    expect(await screen.findByText("Sign in to see your watchlist")).toBeInTheDocument();
+    expect(watchlistApi.listMyWatchlist).not.toHaveBeenCalled();
+    expect(authApi.getMyStats).not.toHaveBeenCalled();
+    await userEvent.click(screen.getAllByRole("button", { name: "Login" })[0]);
+    expect(onOpenAuth).toHaveBeenCalledWith("login");
   });
 });
 
@@ -171,124 +258,125 @@ describe("WatchlistPage setelah redesign", () => {
 
     const select = await screen.findByLabelText("Status untuk Midnight Signal");
     expect(select).toHaveValue("want_to_watch");
-
     await userEvent.selectOptions(select, "watched");
 
     await waitFor(() => expect(watchlistApi.updateWatchlistItem).toHaveBeenCalledTimes(1));
-    // Argumen pertama = id BARIS WATCHLIST (9), bukan id film (54).
     expect(watchlistApi.updateWatchlistItem).toHaveBeenCalledWith(9, { status: "watched" }, "token-uji");
-    // UI ikut berubah setelah mutasi berhasil (select dibaca ulang, bukan variabel lama).
     await waitFor(() => expect(screen.getByLabelText("Status untuk Midnight Signal")).toHaveValue("watched"));
   });
 
   it("menghapus memakai ID baris yang benar lalu mengganti daftar dengan empty state", async () => {
     renderApp(<WatchlistPage onOpen={vi.fn()} onBrowse={vi.fn()} />);
 
-    const hapus = await screen.findByRole("button", { name: "Hapus" });
-    await userEvent.click(hapus);
+    await userEvent.click(await screen.findByRole("button", { name: "Hapus" }));
 
     await waitFor(() => expect(watchlistApi.removeWatchlistItem).toHaveBeenCalledWith(9, "token-uji"));
-    // Baris benar-benar hilang: empty state muncul menggantikan daftar.
     await waitFor(() => expect(screen.getByRole("button", { name: "Jelajahi katalog" })).toBeInTheDocument());
   });
 });
 
-describe("AppShell + navigasi setelah redesign", () => {
-  it("memakai rute yang sama dengan sebelumnya saat menu diklik", async () => {
+describe("Header horizontal", () => {
+  it("memuat Home, Movies, Watchlist, Genres, Profile dan mengirim rute yang benar", async () => {
     const onNavigate = vi.fn();
     renderApp(
-      <AppShell view="discover" onNavigate={onNavigate} onOpenAuth={vi.fn()}>
-        <p>isi halaman</p>
-      </AppShell>,
-    );
-    // Tunggu AuthProvider selesai memuat profil agar tidak ada state update di luar act().
-    await waitFor(() => expect(authApi.getMyProfile).toHaveBeenCalled());
-
-    const header = screen.getByRole("banner");
-    // Header TIDAK lagi memuat filter jenis tayangan: dulu Film/Series ada di
-    // sini SEKALIGUS sebagai chip di toolbar Discover, sehingga tampak seperti
-    // baris duplikat. Sekarang hanya navigasi antar-halaman.
-    expect(within(header).queryByRole("button", { name: "Film" })).toBeNull();
-    expect(within(header).queryByRole("button", { name: "Series" })).toBeNull();
-
-    await userEvent.click(within(header).getByRole("button", { name: "Discover" }));
-    expect(onNavigate).toHaveBeenCalledWith(expect.objectContaining({ view: "discover", mediaType: "all" }));
-
-    await userEvent.click(within(header).getByRole("button", { name: "Watchlist" }));
-    expect(onNavigate).toHaveBeenCalledWith(expect.objectContaining({ view: "watchlist" }));
-  });
-
-  it("tidak menaruh menu Profil di header (namun tetap ada di bilah bawah)", async () => {
-    renderApp(
-      <AppShell view="discover" onNavigate={vi.fn()} onOpenAuth={vi.fn()}>
+      <AppShell {...shellProps({ onNavigate })}>
         <p>isi halaman</p>
       </AppShell>,
     );
     await waitFor(() => expect(authApi.getMyProfile).toHaveBeenCalled());
 
-    // Nama akun inilah "menu Profil" di header: menuju Profil dan ditandai
-    // aktif saat halaman itu sedang dibuka. (Mock profil memakai nama "Uji".)
-    const accountBtn = within(screen.getByRole("banner")).getByRole("button", { name: /uji/i });
-    expect(accountBtn).toBeInTheDocument();
+    const nav = within(screen.getByRole("banner")).getByRole("navigation", { name: "Main navigation" });
+    expect(within(nav).getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "Home",
+      "Movies",
+      "Watchlist",
+      "Genres",
+      "Profile",
+    ]);
 
-    // Menu Profil terpisah di header tidak ada — tujuannya sudah di nama akun.
-    expect(within(screen.getByRole("banner")).queryByRole("button", { name: "Profil" })).toBeNull();
-    // Di layar kecil nama akun disembunyikan, jadi Profil HARUS tetap ada di bawah.
-    const bottomNav = screen.getByRole("navigation", { name: "Navigasi bawah" });
-    expect(within(bottomNav).getByRole("button", { name: "Profil" })).toBeInTheDocument();
+    for (const [label, view] of [["Movies", "movies"], ["Watchlist", "watchlist"], ["Genres", "genres"], ["Profile", "profile"]]) {
+      await userEvent.click(within(nav).getByRole("button", { name: label }));
+      expect(onNavigate).toHaveBeenLastCalledWith(expect.objectContaining({ view }));
+    }
   });
 
-  it("menandai halaman aktif di header untuk tiap rute", async () => {
+  it("menandai halaman aktif lewat aria-current (detail film = Movies)", async () => {
     const { unmount } = renderApp(
-      <AppShell view="profile" onNavigate={vi.fn()} onOpenAuth={vi.fn()}>
-        <p>isi halaman</p>
+      <AppShell {...shellProps({ view: "genres" })}>
+        <p>isi</p>
       </AppShell>,
     );
     await waitFor(() => expect(authApi.getMyProfile).toHaveBeenCalled());
-
-    // Halaman Profil: nama akun di kanan header jadi penanda halaman aktif.
-    const header = screen.getByRole("banner");
-    expect(within(header).getByRole("button", { name: /uji/i })).toHaveAttribute("aria-current", "page");
-    // Tidak ada tab Discover yang salah ikut menyala.
-    expect(within(header).queryByRole("button", { name: "Discover", current: "page" })).toBeNull();
+    const nav = () => within(screen.getByRole("banner")).getByRole("navigation", { name: "Main navigation" });
+    expect(within(nav()).getByRole("button", { name: "Genres" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav()).getByRole("button", { name: "Home" })).not.toHaveAttribute("aria-current");
     unmount();
 
     renderApp(
-      <AppShell view="discover" onNavigate={vi.fn()} onOpenAuth={vi.fn()}>
-        <p>isi halaman</p>
+      <AppShell {...shellProps({ view: "movie" })}>
+        <p>isi</p>
       </AppShell>,
     );
     await waitFor(() => expect(authApi.getMyProfile).toHaveBeenCalled());
-    expect(within(screen.getByRole("banner")).getByRole("button", { name: "Discover" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav()).getByRole("button", { name: "Movies" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("menyediakan bilah navigasi bawah dengan menu yang sama dan maksimal 5 item", async () => {
+  it("mengirim kata kunci saat Enter dan mengosongkannya dengan tombol clear", async () => {
+    const onSearch = vi.fn();
     renderApp(
-      <AppShell view="watchlist" onNavigate={vi.fn()} onOpenAuth={vi.fn()}>
-        <p>isi halaman</p>
+      <AppShell {...shellProps({ onSearch })}>
+        <p>isi</p>
       </AppShell>,
     );
     await waitFor(() => expect(authApi.getMyProfile).toHaveBeenCalled());
 
-    const bottomNav = screen.getByRole("navigation", { name: "Navigasi bawah" });
-    const buttons = within(bottomNav).getAllByRole("button");
-    expect(buttons.length).toBeGreaterThan(0);
-    expect(buttons.length).toBeLessThanOrEqual(5);
-    expect(within(bottomNav).getByRole("button", { name: "Watchlist" })).toHaveAttribute("aria-current", "page");
+    const input = screen.getByLabelText("Search movies by title");
+    await userEvent.type(input, "  echo {Enter}");
+    expect(onSearch).toHaveBeenLastCalledWith("echo");
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(onSearch).toHaveBeenLastCalledWith("");
   });
 
-  it("tidak menawarkan menu admin untuk pengguna biasa", async () => {
+  it("menu akun memuat Profile, My Watchlist, Logout dan tidak menawarkan menu admin untuk user biasa", async () => {
+    const onNavigate = vi.fn();
     renderApp(
-      <AppShell view="discover" onNavigate={vi.fn()} onOpenAuth={vi.fn()}>
-        <p>isi halaman</p>
+      <AppShell {...shellProps({ onNavigate })}>
+        <p>isi</p>
       </AppShell>,
     );
-    // Tunggu AuthProvider selesai memuat profil agar tidak ada state update di luar act().
     await waitFor(() => expect(authApi.getMyProfile).toHaveBeenCalled());
 
+    await userEvent.click(screen.getByRole("button", { name: /account menu/i }));
+    const menu = screen.getByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: /Logout/ })).toBeInTheDocument();
+    expect(within(menu).queryByRole("menuitem", { name: /Catalog Admin|Review Moderation/ })).toBeNull();
+
+    await userEvent.click(within(menu).getByRole("menuitem", { name: /My Watchlist/ }));
+    expect(onNavigate).toHaveBeenCalledWith(expect.objectContaining({ view: "watchlist" }));
+  });
+
+  it("pengunjung anonim melihat Login & Register, bukan avatar", async () => {
+    sessionStorage.clear();
+    const onOpenAuth = vi.fn();
+    renderApp(
+      <AppShell {...shellProps({ onOpenAuth })}>
+        <p>isi</p>
+      </AppShell>,
+    );
     const header = screen.getByRole("banner");
-    expect(within(header).queryByRole("button", { name: "Moderasi" })).toBeNull();
-    expect(within(header).queryByRole("button", { name: "Katalog" })).toBeNull();
-    expect(within(screen.getByRole("navigation", { name: "Navigasi bawah" })).queryByRole("button", { name: "Moderasi" })).toBeNull();
+    expect(within(header).queryByRole("button", { name: /account menu/i })).toBeNull();
+    await userEvent.click(within(header).getByRole("button", { name: "Register" }));
+    expect(onOpenAuth).toHaveBeenCalledWith("register");
+  });
+
+  it("tidak menampilkan tombol notifikasi (belum ada fitur notifikasi di backend)", async () => {
+    renderApp(
+      <AppShell {...shellProps()}>
+        <p>isi</p>
+      </AppShell>,
+    );
+    await waitFor(() => expect(authApi.getMyProfile).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: /notification/i })).toBeNull();
   });
 });

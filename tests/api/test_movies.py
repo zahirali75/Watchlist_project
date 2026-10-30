@@ -79,3 +79,23 @@ def test_body_tidak_valid_422_envelope_seragam(client, admin_auth):
     body = response.json()
     assert body["success"] is False
     assert body["data"]["errorCode"] == "VALIDATION_ERROR"
+
+
+def test_list_movies_meneruskan_parameter_sort(client, monkeypatch):
+    captured = {}
+
+    def fake_find_all(**kwargs):
+        captured.update(kwargs)
+        return [MOVIE], 1
+
+    monkeypatch.setattr(movie_repository, "find_all", fake_find_all)
+
+    assert client.get("/movies?sort=rating_desc").status_code == 200
+    assert captured["sort"] == "rating_desc"
+    # Tanpa parameter -> urutan lama (id).
+    client.get("/movies")
+    assert captured["sort"] == "id"
+
+
+def test_list_movies_sort_tidak_valid_422(client):
+    assert client.get("/movies?sort=DROP_TABLE").status_code == 422

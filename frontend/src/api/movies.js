@@ -3,12 +3,12 @@ import { requestData, requestList } from "./client.js";
 
 /**
  * Daftar film dengan pencarian/filter/paginasi.
- * `media_type` hanya dikirim bila bernilai "movie" atau "series" (helper mediaTypeQuery).
+ * `sort`: "rating_desc" | "year_desc" (default urut id). `media_type` hanya dikirim bila bernilai "movie" atau "series" (helper mediaTypeQuery).
  */
-export function listMovies({ search, genre, mediaType, page, limit, signal } = {}) {
+export function listMovies({ search, genre, mediaType, sort, page, limit, signal } = {}) {
   return requestList("/movies", {
     signal,
-    query: { search, genre, media_type: mediaType, page, limit },
+    query: { search, genre, media_type: mediaType, sort, page, limit },
   });
 }
 

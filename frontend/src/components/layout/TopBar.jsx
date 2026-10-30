@@ -1,146 +1,215 @@
-/** Header aplikasi: merek, navigasi utama, dan aksi akun.
+/**
+ * Header horizontal satu baris di paling atas:
+ * logo · Home · Movies · Watchlist · Genres · Profile · [pencarian] · akun.
  *
- * Daftar menu di bawah ini juga dipakai bilah navigasi bawah di AppShell, jadi
- * ikon, label, dan `view`-nya adalah sumber tunggal untuk kedua navigasi —
- * jangan duplikasi daftarnya di tempat lain supaya rute tidak bisa menyimpang.
+ * Tombol notifikasi sengaja tidak ada: backend belum punya fitur notifikasi.
+ * Di layar kecil navigasi pindah ke menu hamburger dan pencarian ke tombol ikon.
  */
-import React from "react";
-import { Bookmark, Clapperboard, Compass, LayoutGrid, LogIn, LogOut, Star, UserRound } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Bookmark,
+  ChevronDown,
+  Globe,
+  House,
+  LayoutGrid,
+  LogOut,
+  Menu,
+  MessageSquare,
+  Search,
+  Shield,
+  UserRound,
+  X,
+} from "lucide-react";
 
 import { useAuth } from "../../context/AuthContext.jsx";
-import { MEDIA_TYPE } from "../../lib/mediaType.js";
+import Logo from "./Logo.jsx";
+import SearchBar from "./SearchBar.jsx";
 
-/**
- * Menu navigasi utama: satu tujuan per halaman, TANPA filter jenis tayangan.
- *
- * Dulu Film dan Series ada di sini SEKALIGUS sebagai chip filter di toolbar
- * Discover — dua kelompok tombol berlabel sama untuk fungsi yang sama, tetapi
- * hanya kelompok toolbar yang penandaan aktifnya ikut berubah, sehingga header
- * tampak seperti salinan baris di bawahnya. Filter jenis kini hanya ada di satu
- * tempat: chip di DiscoverPage (dan tetap terjangkau dari bilah bawah di layar
- * kecil lewat `bottomNavItems`).
- */
-export const PUBLIC_ITEMS = [
-  { view: "discover", mediaType: MEDIA_TYPE.all, label: "Discover", icon: Compass },
-];
-
-/** Menu yang butuh login. */
-export const MEMBER_ITEMS = [
+/** Menu utama — sumber tunggal untuk header dan menu hamburger. */
+export const NAV_ITEMS = [
+  { view: "home", label: "Home", icon: House },
+  { view: "movies", label: "Movies", icon: LayoutGrid },
   { view: "watchlist", label: "Watchlist", icon: Bookmark },
-  { view: "my-reviews", label: "Ulasan Saya", icon: Star },
-  // Nama akun di kanan header sudah menuju Profil, jadi di layar lebar menu ini
-  // mubazir (dua tombol, satu tujuan). Disimpan untuk bilah bawah layar kecil,
-  // yang menyembunyikan nama akun sehingga tanpa ini Profil tak bisa dibuka.
-  { view: "profile", label: "Profil", icon: UserRound, mobileOnly: true },
+  { view: "genres", label: "Genres", icon: Globe },
+  { view: "profile", label: "Profile", icon: UserRound },
 ];
 
-/** Menu khusus admin. */
-export const ADMIN_ITEMS = [
-  { view: "admin", label: "Katalog", icon: LayoutGrid },
-  { view: "moderation", label: "Moderasi", icon: LayoutGrid },
+const ACCOUNT_ITEMS = [
+  { view: "profile", label: "Profile", icon: UserRound },
+  { view: "watchlist", label: "My Watchlist", icon: Bookmark },
+  { view: "my-reviews", label: "My Reviews", icon: MessageSquare },
+];
+const ADMIN_ITEMS = [
+  { view: "admin", label: "Catalog Admin", icon: Shield },
+  { view: "moderation", label: "Review Moderation", icon: Shield },
 ];
 
-/** Menu yang ditampilkan di bilah bawah: maksimal 5 item (aturan navigasi mobile). */
-export function bottomNavItems({ isAuthenticated, isAdmin }) {
-  if (!isAuthenticated) return PUBLIC_ITEMS;
-  return [
-    PUBLIC_ITEMS[0],
-    // SEMUA MEMBER_ITEMS, termasuk yang `mobileOnly`: di layar kecil nama akun
-    // disembunyikan, jadi bilah bawah inilah satu-satunya jalan ke Profil.
-    ...MEMBER_ITEMS,
-    ...(isAdmin ? ADMIN_ITEMS.slice(0, 1) : []),
-  ].slice(0, 5);
-}
-
-export default function TopBar({ view, onNavigate, onOpenAuth }) {
+export default function TopBar({ view, query, onNavigate, onOpenAuth, onSearch }) {
   const { user, isAuthenticated, isAdmin, signOut } = useAuth();
-  const displayName = user?.name || user?.email?.split("@")[0] || "Anggota";
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const accountRef = useRef(null);
 
-  /**
-   * Penanda aktif murni per HALAMAN, bukan per jenis tayangan.
-   *
-   * Dulu pembandingnya ikut memeriksa `mediaType`, karena Discover/Film/Series
-   * adalah tiga menu terpisah di header. Setelah Film/Series dipindah ke chip
-   * filter (satu-satunya sumber pilihan jenis), ikut membandingkan `mediaType`
-   * membuat tab aktif menghilang begitu user memilih chip "Film" — header jadi
-   * tampak tanpa halaman aktif. Sekarang: halaman yang sedang dibuka = tab aktif.
-   */
-  function isActive(item) {
-    return view === item.view;
+  const displayName = user?.name || user?.email?.split("@")[0] || "Member";
+  const initial = displayName.slice(0, 1).toUpperCase();
+  // Detail film dianggap bagian dari Movies untuk penanda aktif.
+  const activeView = view === "movie" ? "movies" : view;
+
+  useEffect(() => {
+    if (!accountOpen) return undefined;
+    const close = (event) => {
+      if (event.type === "keydown" ? event.key === "Escape" : !accountRef.current?.contains(event.target)) {
+        setAccountOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [accountOpen]);
+
+  function go(item) {
+    setAccountOpen(false);
+    setDrawerOpen(false);
+    onNavigate(item);
   }
 
-  function renderItem(item) {
-    const active = isActive(item);
+  function search(value) {
+    setSearchOpen(false);
+    setDrawerOpen(false);
+    onSearch(value);
+  }
+
+  function navButton(item, extraClass = "") {
+    const Icon = item.icon;
+    const active = activeView === item.view;
     return (
       <button
         type="button"
-        key={item.label}
-        className={active ? "active" : ""}
+        key={item.view + item.label}
+        className={`${extraClass}${active ? " active" : ""}`.trim()}
         aria-current={active ? "page" : undefined}
-        onClick={() => onNavigate(item)}
+        onClick={() => go(item)}
       >
-        {item.label}
+        <Icon size={18} aria-hidden="true" />
+        <span>{item.label}</span>
       </button>
     );
   }
 
   return (
     <header className="topbar">
-      <button
-        type="button"
-        className="brand"
-        onClick={() => onNavigate({ view: "discover", mediaType: "all" })}
-        aria-label="CineList — beranda"
-      >
-        <span className="brand-mark">
-          <Clapperboard size={19} aria-hidden="true" />
-        </span>
-        <span>
-          CINE<span className="brand-light">LIST</span>
-        </span>
-      </button>
+      <div className="topbar-row">
+        <Logo onClick={() => go({ view: "home" })} />
 
-      <nav className="main-nav" aria-label="Navigasi utama">
-        {PUBLIC_ITEMS.map(renderItem)}
-        {/* mobileOnly dilewati: tujuannya sudah ada di nama akun sebelah kanan. */}
-        {isAuthenticated ? MEMBER_ITEMS.filter((item) => !item.mobileOnly).map(renderItem) : null}
-        {isAdmin ? ADMIN_ITEMS.map(renderItem) : null}
-      </nav>
+        <nav className="main-nav" aria-label="Main navigation">
+          {NAV_ITEMS.map((item) => navButton(item))}
+        </nav>
 
-      <div className="account-actions">
-        {isAuthenticated ? (
-          <>
-            <button
-              type="button"
-              // Nama akun inilah "menu Profil" di header. Diberi penanda aktif
-              // supaya di halaman Profil header tidak tampak tanpa halaman aktif
-              // (tab Profil sendiri hanya ada di bilah bawah layar kecil).
-              className={`account-name${view === "profile" ? " active" : ""}`}
-              aria-current={view === "profile" ? "page" : undefined}
-              onClick={() => onNavigate({ view: "profile" })}
-              title={displayName}
-            >
-              <UserRound size={15} aria-hidden="true" />
-              <span>{displayName}</span>
-              {isAdmin ? <span className="role-badge">admin</span> : null}
-            </button>
-            <button type="button" className="login-button" onClick={signOut} title="Keluar" aria-label="Keluar">
-              <LogOut size={16} aria-hidden="true" />
-              <span>Keluar</span>
-            </button>
-          </>
-        ) : (
-          <>
-            <button type="button" className="register-button" onClick={() => onOpenAuth("register")}>
-              Daftar
-            </button>
-            <button type="button" className="login-button" onClick={() => onOpenAuth("login")} aria-label="Masuk">
-              <LogIn size={16} aria-hidden="true" />
-              <span>Masuk</span>
-            </button>
-          </>
-        )}
+        <SearchBar className="topbar-search" query={query} onSearch={search} />
+
+        <div className="topbar-tools">
+          <button
+            type="button"
+            className="icon-btn mobile-only"
+            aria-label="Search"
+            aria-expanded={searchOpen}
+            onClick={() => setSearchOpen((open) => !open)}
+          >
+            <Search size={20} aria-hidden="true" />
+          </button>
+
+          {isAuthenticated ? (
+            <div className="account" ref={accountRef}>
+              <button
+                type="button"
+                className="account-trigger"
+                aria-haspopup="menu"
+                aria-expanded={accountOpen}
+                aria-label={`Account menu for ${displayName}`}
+                onClick={() => setAccountOpen((open) => !open)}
+              >
+                <span className="avatar" aria-hidden="true">
+                  {initial}
+                </span>
+                <ChevronDown size={15} aria-hidden="true" />
+              </button>
+              {accountOpen ? (
+                <div className="account-menu" role="menu">
+                  <div className="account-menu-head">
+                    <strong>{displayName}</strong>
+                    <small>{user?.email}</small>
+                    {isAdmin ? <em className="role-badge">admin</em> : null}
+                  </div>
+                  {ACCOUNT_ITEMS.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button type="button" role="menuitem" key={item.view} onClick={() => go(item)}>
+                        <Icon size={16} aria-hidden="true" /> {item.label}
+                      </button>
+                    );
+                  })}
+                  {isAdmin
+                    ? ADMIN_ITEMS.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <button type="button" role="menuitem" key={item.view} onClick={() => go(item)}>
+                            <Icon size={16} aria-hidden="true" /> {item.label}
+                          </button>
+                        );
+                      })
+                    : null}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="danger"
+                    onClick={() => {
+                      setAccountOpen(false);
+                      signOut();
+                    }}
+                  >
+                    <LogOut size={16} aria-hidden="true" /> Logout
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="auth-links">
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => onOpenAuth("login")}>
+                Login
+              </button>
+              <button type="button" className="btn btn-gold btn-sm" onClick={() => onOpenAuth("register")}>
+                Register
+              </button>
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="icon-btn mobile-only"
+            aria-label={drawerOpen ? "Close menu" : "Open menu"}
+            aria-expanded={drawerOpen}
+            onClick={() => setDrawerOpen((open) => !open)}
+          >
+            {drawerOpen ? <X size={22} aria-hidden="true" /> : <Menu size={22} aria-hidden="true" />}
+          </button>
+        </div>
       </div>
+
+      {searchOpen ? (
+        <div className="mobile-search">
+          <SearchBar query={query} onSearch={search} autoFocus />
+        </div>
+      ) : null}
+
+      {drawerOpen ? (
+        <nav className="mobile-drawer" aria-label="Mobile navigation">
+          {NAV_ITEMS.map((item) => navButton(item))}
+        </nav>
+      ) : null}
     </header>
   );
 }

@@ -15,9 +15,10 @@ def get_movies(
     genre: str | None = None,
     media_type: str | None = None,
     pagination: Pagination | None = None,
+    sort: str | None = None,
 ) -> dict:
     items, total = repo.find_all(
-        search=search, genre=genre, media_type=media_type, pagination=pagination
+        search=search, genre=genre, media_type=media_type, pagination=pagination, sort=sort
     )
     return {"items": items, "total": total}
 

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Query
 from app.auth.dependencies import require_admin
 from app.core.pagination import Pagination, pagination_params
 from app.movies import service
-from app.movies.schemas import MediaType, MovieCreate, MovieUpdate
+from app.movies.schemas import MediaType, MovieCreate, MovieSort, MovieUpdate
 
 router = APIRouter(prefix="/movies", tags=["Movies Catalog"])
 
@@ -28,10 +28,18 @@ def list_movies(
         description="Filter jenis tayangan: 'movie' atau 'series'. Sebelumnya parameter ini "
         "diterima tetapi diabaikan; sekarang benar-benar menyaring.",
     ),
+    sort: MovieSort = Query(
+        MovieSort.id,
+        description="Urutan: 'id' (default), 'rating_desc' (rating tertinggi), 'year_desc' (rilis terbaru).",
+    ),
     pagination: Pagination = Depends(pagination_params),
 ):
     result = service.get_movies(
-        search=search, genre=genre, media_type=media_type.value if media_type else None, pagination=pagination
+        search=search,
+        genre=genre,
+        media_type=media_type.value if media_type else None,
+        pagination=pagination,
+        sort=sort.value,
     )
     return {
         "success": True,

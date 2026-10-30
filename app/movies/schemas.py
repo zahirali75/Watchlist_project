@@ -22,6 +22,14 @@ class MediaType(str, Enum):
     series = "series"
 
 
+class MovieSort(str, Enum):
+    """Urutan daftar film. Default 'id' = perilaku lama (tidak berubah)."""
+
+    id = "id"
+    rating_desc = "rating_desc"
+    year_desc = "year_desc"
+
+
 class MovieBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     release_year: int = Field(..., ge=1888, le=2100, description="Film pertama dibuat 1888")
